@@ -37,7 +37,7 @@ export interface AdminProduct {
   name: string;
   category: string;
   priceCents: number;
-  imageUrl?: string;
+  images: string[];
 }
 
 export interface AdminReview {
@@ -85,12 +85,48 @@ export interface AdminAbout {
 
 // ─── Default data ─────────────────────────────────────────────────────────────
 const DEFAULT_PRODUCTS: AdminProduct[] = [
-  { id: 1, name: "Void Hoodie", category: "Tops", priceCents: 11900 },
-  { id: 2, name: "Utility Cargo", category: "Bottoms", priceCents: 14500 },
-  { id: 3, name: "Oversized Tee", category: "Tops", priceCents: 6500 },
-  { id: 4, name: "Blank Bomber", category: "Outerwear", priceCents: 21900 },
-  { id: 5, name: "Track Pant", category: "Bottoms", priceCents: 9800 },
-  { id: 6, name: "Logo Cap", category: "Accessories", priceCents: 4500 },
+  {
+    id: 1,
+    name: "Void Hoodie",
+    category: "Tops",
+    priceCents: 11900,
+    images: [],
+  },
+  {
+    id: 2,
+    name: "Utility Cargo",
+    category: "Bottoms",
+    priceCents: 14500,
+    images: [],
+  },
+  {
+    id: 3,
+    name: "Oversized Tee",
+    category: "Tops",
+    priceCents: 6500,
+    images: [],
+  },
+  {
+    id: 4,
+    name: "Blank Bomber",
+    category: "Outerwear",
+    priceCents: 21900,
+    images: [],
+  },
+  {
+    id: 5,
+    name: "Track Pant",
+    category: "Bottoms",
+    priceCents: 9800,
+    images: [],
+  },
+  {
+    id: 6,
+    name: "Logo Cap",
+    category: "Accessories",
+    priceCents: 4500,
+    images: [],
+  },
 ];
 
 const DEFAULT_REVIEWS: AdminReview[] = [
@@ -190,6 +226,22 @@ function readLS<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+// Migrate old single imageUrl to images array
+function migrateProducts(products: AdminProduct[]): AdminProduct[] {
+  return products.map((p) => {
+    const legacy = p as AdminProduct & { imageUrl?: string };
+    if (!p.images) {
+      const imgs = legacy.imageUrl ? [legacy.imageUrl] : [];
+      const { imageUrl: _removed, ...rest } = legacy as typeof legacy & {
+        imageUrl?: string;
+      };
+      void _removed;
+      return { ...rest, images: imgs };
+    }
+    return p;
+  });
 }
 
 function writeLS<T>(key: string, value: T): void {
@@ -408,10 +460,63 @@ function ConfirmDeleteModal({
   );
 }
 
+// ─── Multi-image editor sub-component ────────────────────────────────────────
+function ImagesEditor({
+  images,
+  onChange,
+}: {
+  images: string[];
+  onChange: (imgs: string[]) => void;
+}) {
+  const add = () => onChange([...images, ""]);
+  const remove = (i: number) => onChange(images.filter((_, idx) => idx !== i));
+  const update = (i: number, v: string) =>
+    onChange(images.map((img, idx) => (idx === i ? v : img)));
+
+  return (
+    <div className="space-y-2">
+      <FieldLabel>Product Images</FieldLabel>
+      {images.map((url, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: positional image list
+        <div key={i} className="flex gap-2 items-center">
+          <AdminInput
+            value={url}
+            onChange={(v) => update(i, v)}
+            placeholder={`https://example.com/image-${i + 1}.jpg`}
+          />
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            className="shrink-0 p-1.5 text-muted-foreground hover:text-destructive transition-colors"
+            aria-label="Remove image"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ))}
+      {images.length < 5 && (
+        <button
+          type="button"
+          onClick={add}
+          className="flex items-center gap-1.5 font-body text-[10px] tracking-[0.2em] uppercase text-muted-foreground hover:text-foreground transition-colors pt-1"
+        >
+          <Plus className="w-3 h-3" />
+          Add image URL
+        </button>
+      )}
+      {images.length === 0 && (
+        <p className="font-body text-[10px] text-muted-foreground/40">
+          No images yet — click "Add image URL" to add one.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─── PRODUCTS SECTION ─────────────────────────────────────────────────────────
 function ProductsSection() {
   const [products, setProducts] = useState<AdminProduct[]>(() =>
-    readLS(LS_PRODUCTS, DEFAULT_PRODUCTS),
+    migrateProducts(readLS(LS_PRODUCTS, DEFAULT_PRODUCTS)),
   );
   const [editingId, setEditingId] = useState<number | null>(null);
   const [addingNew, setAddingNew] = useState(false);
@@ -421,7 +526,7 @@ function ProductsSection() {
     name: "",
     category: "",
     priceCents: 0,
-    imageUrl: "",
+    images: [],
   });
 
   const [form, setForm] = useState<Omit<AdminProduct, "id">>(blank());
@@ -442,7 +547,7 @@ function ProductsSection() {
       name: p.name,
       category: p.category,
       priceCents: p.priceCents,
-      imageUrl: p.imageUrl ?? "",
+      images: [...(p.images ?? [])],
     });
     setEditingId(p.id);
     setAddingNew(false);
@@ -541,15 +646,13 @@ function ProductsSection() {
                 />
               </div>
               <div className="sm:col-span-3">
-                <FieldLabel>Image URL</FieldLabel>
-                <AdminInput
-                  value={form.imageUrl ?? ""}
-                  onChange={(v) => setForm((f) => ({ ...f, imageUrl: v }))}
-                  placeholder="https://example.com/image.jpg"
+                <ImagesEditor
+                  images={form.images}
+                  onChange={(imgs) => setForm((f) => ({ ...f, images: imgs }))}
                 />
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 mt-3">
               <button
                 type="button"
                 onClick={confirmAdd}
@@ -600,8 +703,8 @@ function ProductsSection() {
               >
                 {editingId === p.id ? (
                   <>
-                    <td className="py-2 pr-4" colSpan={4}>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                    <td className="py-3 pr-4" colSpan={4}>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                         <div>
                           <FieldLabel>Name</FieldLabel>
                           <AdminInput
@@ -633,19 +736,17 @@ function ProductsSection() {
                             }
                           />
                         </div>
-                        <div>
-                          <FieldLabel>Image URL</FieldLabel>
-                          <AdminInput
-                            value={form.imageUrl ?? ""}
-                            onChange={(v) =>
-                              setForm((f) => ({ ...f, imageUrl: v }))
+                        <div className="sm:col-span-2">
+                          <ImagesEditor
+                            images={form.images}
+                            onChange={(imgs) =>
+                              setForm((f) => ({ ...f, images: imgs }))
                             }
-                            placeholder="https://example.com/image.jpg"
                           />
                         </div>
                       </div>
                     </td>
-                    <td className="py-2 text-right align-top pt-6">
+                    <td className="py-3 text-right align-top pt-8">
                       <div className="flex items-center justify-end gap-2">
                         <button
                           type="button"
@@ -667,9 +768,9 @@ function ProductsSection() {
                 ) : (
                   <>
                     <td className="py-3 pr-4">
-                      {p.imageUrl ? (
+                      {p.images?.[0] ? (
                         <img
-                          src={p.imageUrl}
+                          src={p.images[0]}
                           alt={p.name}
                           className="w-10 h-10 object-cover bg-card border border-border/30"
                           onError={(e) => {
@@ -685,6 +786,12 @@ function ProductsSection() {
                     </td>
                     <td className="py-3 pr-4 font-body text-sm text-foreground">
                       {p.name}
+                      {p.images && p.images.length > 0 && (
+                        <span className="ml-2 font-body text-[9px] tracking-wider text-muted-foreground/50">
+                          {p.images.length} img
+                          {p.images.length !== 1 ? "s" : ""}
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 pr-4 font-body text-xs text-muted-foreground tracking-widest uppercase">
                       {p.category}

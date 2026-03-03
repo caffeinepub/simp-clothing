@@ -1,4 +1,10 @@
-import { ShoppingBag, User } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ShoppingBag,
+  User,
+  X as XIcon,
+} from "lucide-react";
 import { AnimatePresence, type Variants, motion } from "motion/react";
 import { useEffect, useState } from "react";
 
@@ -56,6 +62,7 @@ const FALLBACK_PRODUCTS: Array<
     id: number;
     priceCents: number;
     image: string;
+    images: string[];
   }
 > = [
   {
@@ -64,6 +71,7 @@ const FALLBACK_PRODUCTS: Array<
     category: "Tops",
     priceCents: 11900,
     image: "/assets/generated/simp-hoodie.dim_600x750.jpg",
+    images: ["/assets/generated/simp-hoodie.dim_600x750.jpg"],
   },
   {
     id: 2,
@@ -71,6 +79,7 @@ const FALLBACK_PRODUCTS: Array<
     category: "Bottoms",
     priceCents: 14500,
     image: "/assets/generated/simp-cargo.dim_600x750.jpg",
+    images: ["/assets/generated/simp-cargo.dim_600x750.jpg"],
   },
   {
     id: 3,
@@ -78,6 +87,7 @@ const FALLBACK_PRODUCTS: Array<
     category: "Tops",
     priceCents: 6500,
     image: "/assets/generated/simp-tee.dim_600x750.jpg",
+    images: ["/assets/generated/simp-tee.dim_600x750.jpg"],
   },
   {
     id: 4,
@@ -85,6 +95,7 @@ const FALLBACK_PRODUCTS: Array<
     category: "Outerwear",
     priceCents: 21900,
     image: "/assets/generated/simp-bomber.dim_600x750.jpg",
+    images: ["/assets/generated/simp-bomber.dim_600x750.jpg"],
   },
   {
     id: 5,
@@ -92,6 +103,7 @@ const FALLBACK_PRODUCTS: Array<
     category: "Bottoms",
     priceCents: 9800,
     image: "/assets/generated/simp-trackpants.dim_600x750.jpg",
+    images: ["/assets/generated/simp-trackpants.dim_600x750.jpg"],
   },
   {
     id: 6,
@@ -99,6 +111,7 @@ const FALLBACK_PRODUCTS: Array<
     category: "Accessories",
     priceCents: 4500,
     image: "/assets/generated/simp-cap.dim_600x750.jpg",
+    images: ["/assets/generated/simp-cap.dim_600x750.jpg"],
   },
 ];
 
@@ -302,15 +315,224 @@ function Hero({
   );
 }
 
+// ─── PRODUCT DETAIL MODAL ────────────────────────────────────────────────────
+interface ProductDetailProps {
+  product: Product & { priceCents: number };
+  images: string[];
+  open: boolean;
+  onClose: () => void;
+}
+
+function ProductDetailModal({
+  product,
+  images,
+  open,
+  onClose,
+}: ProductDetailProps) {
+  const { addToCart } = useCart();
+  const [imgIdx, setImgIdx] = useState(0);
+
+  // Reset image index when product changes
+  const displayImages =
+    images.length > 0
+      ? images
+      : ["/assets/generated/simp-hoodie.dim_600x750.jpg"];
+
+  const prev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setImgIdx((i) => (i - 1 + displayImages.length) % displayImages.length);
+  };
+  const next = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setImgIdx((i) => (i + 1) % displayImages.length);
+  };
+
+  const handleAddToCart = () => {
+    const cartProduct: CartProduct = {
+      id: Number(product.id),
+      name: product.name,
+      priceCents: Number(product.priceCents),
+      image: displayImages[0],
+      category: product.category,
+    };
+    addToCart(cartProduct);
+    onClose();
+  };
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-background/85 backdrop-blur-sm"
+            onClick={onClose}
+            onKeyDown={(e) => e.key === "Escape" && onClose()}
+            role="button"
+            tabIndex={-1}
+            aria-label="Close product detail"
+          />
+
+          {/* Modal */}
+          <motion.div
+            data-ocid="product_detail.modal"
+            className="relative z-10 bg-background border border-border/60 w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col md:flex-row"
+            initial={{ scale: 0.96, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.96, opacity: 0, y: 20 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          >
+            {/* Close button */}
+            <button
+              type="button"
+              data-ocid="product_detail.close_button"
+              onClick={onClose}
+              className="absolute top-3 right-3 z-20 p-1.5 text-muted-foreground/60 hover:text-foreground transition-colors bg-background/60 backdrop-blur-sm"
+              aria-label="Close product detail"
+            >
+              <XIcon className="w-4 h-4" />
+            </button>
+
+            {/* Image gallery */}
+            <div className="relative w-full md:w-[55%] aspect-[4/5] md:aspect-auto bg-card shrink-0 overflow-hidden">
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.img
+                  key={imgIdx}
+                  src={displayImages[imgIdx]}
+                  alt={`${product.name} — view ${imgIdx + 1}`}
+                  className="w-full h-full object-cover absolute inset-0"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                />
+              </AnimatePresence>
+
+              {/* Prev / Next arrows (only if multiple images) */}
+              {displayImages.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    data-ocid="product_detail.prev_button"
+                    onClick={prev}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-background/70 backdrop-blur-sm flex items-center justify-center text-foreground hover:bg-background/90 transition-colors"
+                    aria-label="Previous image"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    data-ocid="product_detail.next_button"
+                    onClick={next}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-background/70 backdrop-blur-sm flex items-center justify-center text-foreground hover:bg-background/90 transition-colors"
+                    aria-label="Next image"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+
+                  {/* Dot indicators */}
+                  <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+                    {displayImages.map((_, i) => (
+                      <button
+                        // biome-ignore lint/suspicious/noArrayIndexKey: positional dots
+                        key={i}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setImgIdx(i);
+                        }}
+                        className={`w-1.5 h-1.5 transition-all duration-200 ${i === imgIdx ? "bg-foreground scale-125" : "bg-foreground/40"}`}
+                        aria-label={`View image ${i + 1}`}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Product info */}
+            <div className="flex flex-col justify-between p-6 md:p-8 flex-1 overflow-y-auto">
+              <div>
+                <p className="font-body text-[10px] tracking-[0.3em] uppercase text-muted-foreground mb-3">
+                  {product.category}
+                </p>
+                <h2
+                  className="font-display text-3xl md:text-4xl tracking-tightest text-foreground leading-none mb-4"
+                  style={{ fontVariationSettings: '"wght" 900' }}
+                >
+                  {product.name}
+                </h2>
+                <p
+                  className="font-display text-2xl text-foreground mb-8"
+                  style={{ fontVariationSettings: '"wght" 700' }}
+                >
+                  {formatPrice(product.priceCents)}
+                </p>
+
+                {/* Thumbnail strip (if multiple images) */}
+                {displayImages.length > 1 && (
+                  <div className="flex gap-2 mb-8 flex-wrap">
+                    {displayImages.map((src, i) => (
+                      <button
+                        // biome-ignore lint/suspicious/noArrayIndexKey: positional thumbs
+                        key={i}
+                        type="button"
+                        data-ocid={`product_detail.thumb.${i + 1}`}
+                        onClick={() => setImgIdx(i)}
+                        className={`w-14 h-14 overflow-hidden border-2 transition-all duration-150 ${i === imgIdx ? "border-foreground" : "border-border/40 opacity-60 hover:opacity-100"}`}
+                      >
+                        <img
+                          src={src}
+                          alt={`Thumbnail ${i + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <motion.button
+                type="button"
+                data-ocid="product_detail.add_to_cart_button"
+                onClick={handleAddToCart}
+                className="w-full py-4 bg-foreground text-background font-display text-sm tracking-[0.2em] uppercase hover:bg-foreground/90 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                style={{ fontVariationSettings: '"wght" 700' }}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                Add to Cart
+              </motion.button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 // ─── PRODUCT CARD ─────────────────────────────────────────────────────────────
 function ProductCard({
   product,
   index,
   image,
+  images,
+  onOpenDetail,
 }: {
   product: Product | (typeof FALLBACK_PRODUCTS)[0];
   index: number;
   image: string;
+  images: string[];
+  onOpenDetail?: (
+    product: Product & { priceCents: number },
+    images: string[],
+  ) => void;
 }) {
   const ocid = `products.item.${index + 1}`;
   const { addToCart } = useCart();
@@ -328,10 +550,15 @@ function ProductCard({
     addToCart(cartProduct);
   };
 
+  const handleCardClick = () => {
+    onOpenDetail?.(product as Product & { priceCents: number }, images);
+  };
+
   return (
     <motion.article
       data-ocid={ocid}
       className="product-card group cursor-pointer"
+      onClick={handleCardClick}
       initial={{ opacity: 0, y: 50 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}
@@ -410,43 +637,63 @@ function SkeletonCard() {
 // ─── PRODUCTS SECTION ────────────────────────────────────────────────────────
 function ProductsSection() {
   const { data: products, isLoading } = useGetAllProducts();
+  const [detailProduct, setDetailProduct] = useState<
+    (Product & { priceCents: number }) | null
+  >(null);
+  const [detailImages, setDetailImages] = useState<string[]>([]);
 
-  // Prefer admin-managed products from localStorage (they include imageUrl)
+  // Prefer admin-managed products from localStorage (they include images array)
   const adminProducts = readLocalStorage<
     Array<{
       id: number;
       name: string;
       category: string;
       priceCents: number;
-      imageUrl?: string;
+      images?: string[];
+      imageUrl?: string; // legacy
     }>
   >("jade_products", []);
 
+  // Migrate legacy imageUrl → images
+  const migratedAdminProducts = adminProducts.map((p) => ({
+    ...p,
+    images: p.images ?? (p.imageUrl ? [p.imageUrl] : []),
+  }));
+
   const displayProducts =
-    adminProducts.length > 0
-      ? adminProducts
+    migratedAdminProducts.length > 0
+      ? migratedAdminProducts
       : products && products.length > 0
         ? products
         : FALLBACK_PRODUCTS;
 
+  const getImages = (
+    product: (typeof displayProducts)[0],
+    index: number,
+  ): string[] => {
+    // Admin product with images array
+    if (
+      "images" in product &&
+      Array.isArray((product as { images?: string[] }).images)
+    ) {
+      const imgs = (product as { images: string[] }).images.filter(Boolean);
+      if (imgs.length > 0) return imgs;
+    }
+    // Fallback product with image field
+    if ("image" in product) {
+      return [(product as (typeof FALLBACK_PRODUCTS)[0]).image];
+    }
+    // Default positional fallback
+    const fallback =
+      PRODUCT_IMAGES[index % Object.keys(PRODUCT_IMAGES).length] ??
+      PRODUCT_IMAGES[0];
+    return [fallback];
+  };
+
   const getImage = (
     product: (typeof displayProducts)[0],
     index: number,
-  ): string => {
-    // If admin product has an imageUrl, use it
-    if ("imageUrl" in product && (product as { imageUrl?: string }).imageUrl) {
-      return (product as { imageUrl?: string }).imageUrl as string;
-    }
-    // If fallback product has image field
-    if ("image" in product) {
-      return (product as (typeof FALLBACK_PRODUCTS)[0]).image;
-    }
-    // Default to positional fallback
-    return (
-      PRODUCT_IMAGES[index % Object.keys(PRODUCT_IMAGES).length] ??
-      PRODUCT_IMAGES[0]
-    );
-  };
+  ): string => getImages(product, index)[0] ?? "";
 
   return (
     <section
@@ -497,16 +744,33 @@ function ProductsSection() {
 
       {/* Products grid */}
       {!isLoading && (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-6 md:gap-8">
-          {displayProducts.map((product, index) => (
-            <ProductCard
-              key={Number(product.id)}
-              product={product as unknown as Product}
-              index={index}
-              image={getImage(product, index)}
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-6 md:gap-8">
+            {displayProducts.map((product, index) => (
+              <ProductCard
+                key={Number(product.id)}
+                product={product as unknown as Product}
+                index={index}
+                image={getImage(product, index)}
+                images={getImages(product, index)}
+                onOpenDetail={(p, imgs) => {
+                  setDetailProduct(p);
+                  setDetailImages(imgs);
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Product detail modal */}
+          {detailProduct && (
+            <ProductDetailModal
+              product={detailProduct}
+              images={detailImages}
+              open={!!detailProduct}
+              onClose={() => setDetailProduct(null)}
             />
-          ))}
-        </div>
+          )}
+        </>
       )}
     </section>
   );
