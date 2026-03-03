@@ -1,7 +1,16 @@
 import { Star } from "lucide-react";
 import { motion } from "motion/react";
 
-const REVIEWS = [
+interface StoredReview {
+  id: number;
+  reviewerName: string;
+  itemName: string;
+  rating: number;
+  quote: string;
+  date: string;
+}
+
+const FALLBACK_REVIEWS = [
   {
     name: "Priya M.",
     rating: 5,
@@ -44,6 +53,30 @@ const REVIEWS = [
   },
 ];
 
+function getReviews(): Array<{
+  name: string;
+  rating: number;
+  quote: string;
+  date: string;
+  item: string;
+}> {
+  try {
+    const raw = localStorage.getItem("jade_reviews");
+    if (!raw) return FALLBACK_REVIEWS;
+    const stored: StoredReview[] = JSON.parse(raw);
+    if (!Array.isArray(stored) || stored.length === 0) return FALLBACK_REVIEWS;
+    return stored.map((r) => ({
+      name: r.reviewerName,
+      rating: r.rating,
+      quote: r.quote,
+      date: r.date,
+      item: r.itemName,
+    }));
+  } catch {
+    return FALLBACK_REVIEWS;
+  }
+}
+
 function StarRating({ count }: { count: number }) {
   return (
     <div
@@ -62,6 +95,8 @@ function StarRating({ count }: { count: number }) {
 }
 
 export function ReviewsSection() {
+  const REVIEWS = getReviews();
+
   return (
     <section
       id="reviews"

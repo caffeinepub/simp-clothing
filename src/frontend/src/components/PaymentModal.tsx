@@ -263,7 +263,7 @@ export function PaymentModal({
       <DialogContent
         data-ocid="payment.modal"
         showCloseButton={false}
-        className="bg-background border border-border/60 p-0 gap-0 max-w-[480px] w-full overflow-hidden"
+        className="bg-background border border-border/60 p-0 gap-0 max-w-[480px] w-full overflow-hidden flex flex-col max-h-[90vh]"
       >
         <AnimatePresence mode="wait">
           {/* ── Step 1: Address ── */}
@@ -274,6 +274,7 @@ export function PaymentModal({
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="flex flex-col min-h-0 flex-1"
             >
               <DialogHeader className="px-6 pt-5 pb-0 border-b-0">
                 <div className="flex items-center justify-between">
@@ -296,7 +297,7 @@ export function PaymentModal({
 
               <StepIndicator current="address" />
 
-              <ScrollArea className="max-h-[60vh]">
+              <ScrollArea className="flex-1 overflow-auto">
                 <div
                   data-ocid="payment.address_panel"
                   className="px-6 py-5 space-y-4"
@@ -542,6 +543,7 @@ export function PaymentModal({
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="flex flex-col min-h-0 flex-1"
             >
               <DialogHeader className="px-6 pt-5 pb-0 border-b-0">
                 <div className="flex items-center justify-between">
@@ -564,7 +566,7 @@ export function PaymentModal({
 
               <StepIndicator current="payment" />
 
-              <ScrollArea className="max-h-[60vh]">
+              <ScrollArea className="flex-1 overflow-auto">
                 <div className="px-6 py-5 space-y-6">
                   {/* Address summary */}
                   <div
@@ -680,7 +682,7 @@ export function PaymentModal({
                   </div>
 
                   {/* Method-specific form */}
-                  <AnimatePresence mode="wait">
+                  <AnimatePresence mode="wait" initial={false}>
                     {method === "card" && (
                       <motion.div
                         key="card"

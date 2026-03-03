@@ -22,9 +22,8 @@ export function CartDrawer({ onCheckout }: { onCheckout?: () => void }) {
     <Sheet open={isOpen} onOpenChange={(open) => !open && closeCart()}>
       <SheetContent
         side="right"
-        showCloseButton={false}
         data-ocid="cart.sheet"
-        className="flex flex-col w-full sm:max-w-[420px] bg-background border-l border-border/60 p-0 gap-0"
+        className="flex flex-col w-full sm:max-w-[420px] bg-background border-l border-border/60 p-0 gap-0 [&>button:last-of-type]:hidden"
       >
         {/* Header */}
         <SheetHeader className="px-6 pt-6 pb-4 border-b border-border/40">

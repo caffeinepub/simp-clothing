@@ -1,15 +1,54 @@
 import { ShoppingBag, User } from "lucide-react";
 import { AnimatePresence, type Variants, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { Product } from "./backend.d";
+import { AdminPage } from "./components/AdminPage";
 import { CartDrawer } from "./components/CartDrawer";
 import { ChatWidget } from "./components/ChatWidget";
 import { PaymentModal } from "./components/PaymentModal";
 import { ProfilePanel } from "./components/ProfilePanel";
 import { ReviewsSection } from "./components/ReviewsSection";
+import { Toaster } from "./components/ui/sonner";
 import { type CartProduct, CartProvider, useCart } from "./context/CartContext";
 import { useGetAllProducts } from "./hooks/useQueries";
+
+// ─── localStorage helpers ─────────────────────────────────────────────────────
+function readLocalStorage<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+interface HeroSettings {
+  tagline: string;
+  ctaText: string;
+  seasonLabel: string;
+}
+
+interface AboutSettings {
+  heading: string;
+  ethosParagraph: string;
+  workParagraph: string;
+}
+
+const DEFAULT_HERO_SETTINGS: HeroSettings = {
+  tagline: "Wear Less.  Mean More.",
+  ctaText: "Shop Now",
+  seasonLabel: "Collection 001 — 2026",
+};
+
+const DEFAULT_ABOUT_SETTINGS: AboutSettings = {
+  heading: "Built for those\nwho need nothing\nto prove everything.",
+  ethosParagraph:
+    "JADE was born from the quiet. Not the silence of giving up — but the silence of not needing to explain yourself. Every piece we make strips away the noise: no logos demanding attention, no trends chasing relevance. Just form, weight, and intention.",
+  workParagraph:
+    "Heavyweight fabrics. Constructed seams. Proportions that move with the body, not against it. We work with a small network of factories that share our obsession with material integrity. Less, always — but never cheap.",
+};
 
 // ─── Fallback product data shown if backend returns empty ────────────────────
 const FALLBACK_PRODUCTS: Array<
@@ -156,7 +195,13 @@ function Nav({
 }
 
 // ─── HERO ─────────────────────────────────────────────────────────────────────
-function Hero({ onShopClick }: { onShopClick: () => void }) {
+function Hero({
+  onShopClick,
+  settings,
+}: {
+  onShopClick: () => void;
+  settings: HeroSettings;
+}) {
   const containerVariants: Variants = {
     hidden: {},
     visible: {
@@ -206,7 +251,7 @@ function Hero({ onShopClick }: { onShopClick: () => void }) {
           variants={itemVariants}
           className="font-body text-[10px] tracking-[0.35em] uppercase text-muted-foreground mb-8"
         >
-          Collection 001 — 2026
+          {settings.seasonLabel}
         </motion.p>
 
         {/* Giant wordmark */}
@@ -223,7 +268,7 @@ function Hero({ onShopClick }: { onShopClick: () => void }) {
           variants={itemVariants}
           className="font-body text-base md:text-xl text-muted-foreground mt-4 mb-12 tracking-widest uppercase"
         >
-          Wear Less.&nbsp;&nbsp;Mean More.
+          {settings.tagline}
         </motion.p>
 
         {/* CTA */}
@@ -236,7 +281,7 @@ function Hero({ onShopClick }: { onShopClick: () => void }) {
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
         >
-          Shop Now
+          {settings.ctaText}
         </motion.button>
       </motion.div>
 
@@ -445,7 +490,12 @@ function ProductsSection() {
 }
 
 // ─── ABOUT SECTION ────────────────────────────────────────────────────────────
-function AboutSection() {
+function AboutSection({ settings }: { settings: AboutSettings }) {
+  // Split heading on newlines and render last segment as muted
+  const headingLines = settings.heading.split("\n");
+  const lastLine = headingLines[headingLines.length - 1];
+  const prevLines = headingLines.slice(0, -1);
+
   return (
     <section
       id="about"
@@ -471,11 +521,14 @@ function AboutSection() {
           viewport={{ once: true }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
         >
-          Built for those
-          <br />
-          who need nothing
-          <br />
-          <span className="text-muted-foreground">to prove everything.</span>
+          {prevLines.map((line, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: heading lines are positional
+            <span key={i}>
+              {line}
+              <br />
+            </span>
+          ))}
+          <span className="text-muted-foreground">{lastLine}</span>
         </motion.h2>
 
         <div className="grid md:grid-cols-2 gap-12 mt-16 border-t border-border pt-12">
@@ -492,10 +545,7 @@ function AboutSection() {
               The Ethos
             </h3>
             <p className="font-body text-base text-muted-foreground leading-relaxed">
-              JADE was born from the quiet. Not the silence of giving up — but
-              the silence of not needing to explain yourself. Every piece we
-              make strips away the noise: no logos demanding attention, no
-              trends chasing relevance. Just form, weight, and intention.
+              {settings.ethosParagraph}
             </p>
           </motion.div>
 
@@ -512,10 +562,7 @@ function AboutSection() {
               The Work
             </h3>
             <p className="font-body text-base text-muted-foreground leading-relaxed">
-              Heavyweight fabrics. Constructed seams. Proportions that move with
-              the body, not against it. We work with a small network of
-              factories that share our obsession with material integrity. Less,
-              always — but never cheap.
+              {settings.workParagraph}
             </p>
           </motion.div>
         </div>
@@ -592,6 +639,15 @@ function AppInner() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
 
+  const heroSettings = readLocalStorage<HeroSettings>(
+    "jade_hero",
+    DEFAULT_HERO_SETTINGS,
+  );
+  const aboutSettings = readLocalStorage<AboutSettings>(
+    "jade_about",
+    DEFAULT_ABOUT_SETTINGS,
+  );
+
   const scrollToProducts = () => {
     document.getElementById("products")?.scrollIntoView({ behavior: "smooth" });
   };
@@ -619,9 +675,9 @@ function AppInner() {
       />
 
       <main>
-        <Hero onShopClick={scrollToProducts} />
+        <Hero onShopClick={scrollToProducts} settings={heroSettings} />
         <ProductsSection />
-        <AboutSection />
+        <AboutSection settings={aboutSettings} />
         <ReviewsSection />
       </main>
 
@@ -649,10 +705,43 @@ function AppInner() {
 }
 
 // ─── APP ─────────────────────────────────────────────────────────────────────
+function useIsAdminRoute() {
+  const [isAdmin, setIsAdmin] = useState(() => {
+    return (
+      window.location.hash === "#admin" || window.location.pathname === "/admin"
+    );
+  });
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      setIsAdmin(
+        window.location.hash === "#admin" ||
+          window.location.pathname === "/admin",
+      );
+    };
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
+
+  return isAdmin;
+}
+
 export default function App() {
+  const isAdmin = useIsAdminRoute();
+
+  if (isAdmin) {
+    return (
+      <>
+        <AdminPage />
+        <Toaster />
+      </>
+    );
+  }
+
   return (
     <CartProvider>
       <AppInner />
+      <Toaster />
     </CartProvider>
   );
 }

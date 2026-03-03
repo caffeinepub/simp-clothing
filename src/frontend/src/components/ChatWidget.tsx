@@ -9,7 +9,7 @@ interface ChatMessage {
 }
 
 // ─── FAQ rule-based matcher ───────────────────────────────────────────────────
-const FAQ_RULES: Array<{ keywords: string[]; answer: string }> = [
+const HARDCODED_FAQ_RULES: Array<{ keywords: string[]; answer: string }> = [
   {
     keywords: [
       "size",
@@ -84,9 +84,27 @@ const FAQ_RULES: Array<{ keywords: string[]; answer: string }> = [
 const FALLBACK_ANSWER =
   "Thanks for reaching out. For further help, email support@jade-brand.com.";
 
+function getFaqRules(): Array<{ keywords: string[]; answer: string }> {
+  try {
+    const raw = localStorage.getItem("jade_faq");
+    if (!raw) return HARDCODED_FAQ_RULES;
+    const stored: Array<{ id: number; keywords: string; answer: string }> =
+      JSON.parse(raw);
+    if (!Array.isArray(stored) || stored.length === 0)
+      return HARDCODED_FAQ_RULES;
+    return stored.map((r) => ({
+      keywords: r.keywords.split(",").map((kw) => kw.trim().toLowerCase()),
+      answer: r.answer,
+    }));
+  } catch {
+    return HARDCODED_FAQ_RULES;
+  }
+}
+
 function getBotAnswer(message: string): string {
+  const rules = getFaqRules();
   const lower = message.toLowerCase();
-  for (const rule of FAQ_RULES) {
+  for (const rule of rules) {
     if (rule.keywords.some((kw) => lower.includes(kw))) {
       return rule.answer;
     }
