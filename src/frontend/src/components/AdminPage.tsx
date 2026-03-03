@@ -693,7 +693,7 @@ function ProductsSection() {
                       ₹{priceCentsToRupees(p.priceCents)}
                     </td>
                     <td className="py-3 text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center justify-end gap-2">
                         <button
                           type="button"
                           data-ocid={`admin.products.edit_button.${i + 1}`}
@@ -966,7 +966,7 @@ function ReviewsSectionAdmin() {
                     "{r.quote}"
                   </p>
                 </div>
-                <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1 shrink-0">
                   <button
                     type="button"
                     data-ocid={`admin.reviews.edit_button.${i + 1}`}
@@ -1302,7 +1302,7 @@ function FaqSection() {
                     {faq.answer}
                   </p>
                 </div>
-                <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1 shrink-0">
                   <button
                     type="button"
                     data-ocid={`admin.faq.edit_button.${i + 1}`}
