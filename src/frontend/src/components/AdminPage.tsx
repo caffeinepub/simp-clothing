@@ -37,6 +37,7 @@ export interface AdminProduct {
   name: string;
   category: string;
   priceCents: number;
+  imageUrl?: string;
 }
 
 export interface AdminReview {
@@ -420,6 +421,7 @@ function ProductsSection() {
     name: "",
     category: "",
     priceCents: 0,
+    imageUrl: "",
   });
 
   const [form, setForm] = useState<Omit<AdminProduct, "id">>(blank());
@@ -436,7 +438,12 @@ function ProductsSection() {
   };
 
   const openEdit = (p: AdminProduct) => {
-    setForm({ name: p.name, category: p.category, priceCents: p.priceCents });
+    setForm({
+      name: p.name,
+      category: p.category,
+      priceCents: p.priceCents,
+      imageUrl: p.imageUrl ?? "",
+    });
     setEditingId(p.id);
     setAddingNew(false);
   };
@@ -533,6 +540,14 @@ function ProductsSection() {
                   placeholder="119"
                 />
               </div>
+              <div className="sm:col-span-3">
+                <FieldLabel>Image URL</FieldLabel>
+                <AdminInput
+                  value={form.imageUrl ?? ""}
+                  onChange={(v) => setForm((f) => ({ ...f, imageUrl: v }))}
+                  placeholder="https://example.com/image.jpg"
+                />
+              </div>
             </div>
             <div className="flex gap-2">
               <button
@@ -560,6 +575,9 @@ function ProductsSection() {
           <thead>
             <tr className="border-b border-border/40">
               <th className="text-left pb-3 font-body text-[10px] tracking-[0.25em] uppercase text-muted-foreground pr-4">
+                Image
+              </th>
+              <th className="text-left pb-3 font-body text-[10px] tracking-[0.25em] uppercase text-muted-foreground pr-4">
                 Name
               </th>
               <th className="text-left pb-3 font-body text-[10px] tracking-[0.25em] uppercase text-muted-foreground pr-4">
@@ -582,33 +600,52 @@ function ProductsSection() {
               >
                 {editingId === p.id ? (
                   <>
-                    <td className="py-2 pr-4">
-                      <AdminInput
-                        value={form.name}
-                        onChange={(v) => setForm((f) => ({ ...f, name: v }))}
-                      />
+                    <td className="py-2 pr-4" colSpan={4}>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                        <div>
+                          <FieldLabel>Name</FieldLabel>
+                          <AdminInput
+                            value={form.name}
+                            onChange={(v) =>
+                              setForm((f) => ({ ...f, name: v }))
+                            }
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel>Category</FieldLabel>
+                          <AdminInput
+                            value={form.category}
+                            onChange={(v) =>
+                              setForm((f) => ({ ...f, category: v }))
+                            }
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel>Price (₹)</FieldLabel>
+                          <AdminInput
+                            type="number"
+                            value={priceCentsToRupees(form.priceCents)}
+                            onChange={(v) =>
+                              setForm((f) => ({
+                                ...f,
+                                priceCents: rupeesToPriceCents(v),
+                              }))
+                            }
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel>Image URL</FieldLabel>
+                          <AdminInput
+                            value={form.imageUrl ?? ""}
+                            onChange={(v) =>
+                              setForm((f) => ({ ...f, imageUrl: v }))
+                            }
+                            placeholder="https://example.com/image.jpg"
+                          />
+                        </div>
+                      </div>
                     </td>
-                    <td className="py-2 pr-4">
-                      <AdminInput
-                        value={form.category}
-                        onChange={(v) =>
-                          setForm((f) => ({ ...f, category: v }))
-                        }
-                      />
-                    </td>
-                    <td className="py-2 pr-4">
-                      <AdminInput
-                        type="number"
-                        value={priceCentsToRupees(form.priceCents)}
-                        onChange={(v) =>
-                          setForm((f) => ({
-                            ...f,
-                            priceCents: rupeesToPriceCents(v),
-                          }))
-                        }
-                      />
-                    </td>
-                    <td className="py-2 text-right">
+                    <td className="py-2 text-right align-top pt-6">
                       <div className="flex items-center justify-end gap-2">
                         <button
                           type="button"
@@ -629,6 +666,23 @@ function ProductsSection() {
                   </>
                 ) : (
                   <>
+                    <td className="py-3 pr-4">
+                      {p.imageUrl ? (
+                        <img
+                          src={p.imageUrl}
+                          alt={p.name}
+                          className="w-10 h-10 object-cover bg-card border border-border/30"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display =
+                              "none";
+                          }}
+                        />
+                      ) : (
+                        <div className="w-10 h-10 bg-card border border-border/30 flex items-center justify-center text-muted-foreground/30">
+                          <Package className="w-4 h-4" />
+                        </div>
+                      )}
+                    </td>
                     <td className="py-3 pr-4 font-body text-sm text-foreground">
                       {p.name}
                     </td>

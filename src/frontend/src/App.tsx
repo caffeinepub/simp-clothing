@@ -411,10 +411,37 @@ function SkeletonCard() {
 function ProductsSection() {
   const { data: products, isLoading } = useGetAllProducts();
 
-  const displayProducts =
-    products && products.length > 0 ? products : FALLBACK_PRODUCTS;
+  // Prefer admin-managed products from localStorage (they include imageUrl)
+  const adminProducts = readLocalStorage<
+    Array<{
+      id: number;
+      name: string;
+      category: string;
+      priceCents: number;
+      imageUrl?: string;
+    }>
+  >("jade_products", []);
 
-  const getImage = (index: number): string => {
+  const displayProducts =
+    adminProducts.length > 0
+      ? adminProducts
+      : products && products.length > 0
+        ? products
+        : FALLBACK_PRODUCTS;
+
+  const getImage = (
+    product: (typeof displayProducts)[0],
+    index: number,
+  ): string => {
+    // If admin product has an imageUrl, use it
+    if ("imageUrl" in product && (product as { imageUrl?: string }).imageUrl) {
+      return (product as { imageUrl?: string }).imageUrl as string;
+    }
+    // If fallback product has image field
+    if ("image" in product) {
+      return (product as (typeof FALLBACK_PRODUCTS)[0]).image;
+    }
+    // Default to positional fallback
     return (
       PRODUCT_IMAGES[index % Object.keys(PRODUCT_IMAGES).length] ??
       PRODUCT_IMAGES[0]
@@ -476,11 +503,7 @@ function ProductsSection() {
               key={Number(product.id)}
               product={product as unknown as Product}
               index={index}
-              image={
-                "image" in product
-                  ? (product as (typeof FALLBACK_PRODUCTS)[0]).image
-                  : getImage(index)
-              }
+              image={getImage(product, index)}
             />
           ))}
         </div>
