@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Cabinet Grotesk — display */
+@font-face {
+  font-family: "Cabinet Grotesk";
+  src: url("/assets/fonts/CabinetGrotesk-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Satoshi — body */
+@font-face {
+  font-family: "Satoshi";
+  src: url("/assets/fonts/Satoshi-Variable.woff2") format("woff2");
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --radius: 0rem;
+
+    /* SIMP — brutalist dark mode always on */
+    --background: 0.09 0 0;
+    --foreground: 0.96 0 0;
+
+    --card: 0.12 0 0;
+    --card-foreground: 0.96 0 0;
+
+    --popover: 0.14 0 0;
+    --popover-foreground: 0.96 0 0;
+
+    /* primary = near-white for CTAs */
+    --primary: 0.96 0 0;
+    --primary-foreground: 0.09 0 0;
+
+    --secondary: 0.18 0 0;
+    --secondary-foreground: 0.96 0 0;
+
+    --muted: 0.16 0 0;
+    --muted-foreground: 0.52 0 0;
+
+    /* accent = acid white-gray for hover */
+    --accent: 0.22 0 0;
+    --accent-foreground: 0.96 0 0;
+
+    --destructive: 0.577 0.245 27.325;
+    --destructive-foreground: 0.985 0 0;
+
+    --border: 0.22 0 0;
+    --input: 0.22 0 0;
+    --ring: 0.5 0 0;
+
+    --chart-1: 0.646 0.222 41.116;
+    --chart-2: 0.6 0.118 184.704;
+    --chart-3: 0.398 0.07 227.392;
+    --chart-4: 0.828 0.189 84.429;
+    --chart-5: 0.769 0.188 70.08;
+
+    --sidebar: 0.12 0 0;
+    --sidebar-foreground: 0.96 0 0;
+    --sidebar-primary: 0.96 0 0;
+    --sidebar-primary-foreground: 0.09 0 0;
+    --sidebar-accent: 0.18 0 0;
+    --sidebar-accent-foreground: 0.96 0 0;
+    --sidebar-border: 0.22 0 0;
+    --sidebar-ring: 0.5 0 0;
+  }
+
+  /* Force dark always — no light mode override needed */
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: dark;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: "Cabinet Grotesk", sans-serif;
+    font-variation-settings: "wght" 900;
+  }
+
+  .font-body {
+    font-family: "Satoshi", sans-serif;
+  }
+
+  /* Tight tracking for brand wordmark */
+  .tracking-tightest {
+    letter-spacing: -0.06em;
+  }
+
+  /* Noise grain overlay */
+  .grain::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 200px 200px;
+  }
+
+  /* Card hover effect */
+  .product-card-img {
+    transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .product-card:hover .product-card-img {
+    transform: scale(1.04);
+  }
+
+  /* Nav backdrop */
+  .nav-blur {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+}
