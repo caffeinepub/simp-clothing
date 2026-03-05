@@ -1,5 +1,6 @@
 import { Star } from "lucide-react";
 import { motion } from "motion/react";
+import { useMemo } from "react";
 
 interface StoredReview {
   id: number;
@@ -95,7 +96,7 @@ function StarRating({ count }: { count: number }) {
 }
 
 export function ReviewsSection() {
-  const REVIEWS = getReviews();
+  const REVIEWS = useMemo(() => getReviews(), []);
 
   return (
     <section

@@ -6,17 +6,24 @@ import {
   X as XIcon,
 } from "lucide-react";
 import { AnimatePresence, type Variants, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 
 import type { Product } from "./backend.d";
-import { AdminPage } from "./components/AdminPage";
 import { CartDrawer } from "./components/CartDrawer";
 import { ChatWidget } from "./components/ChatWidget";
 import { PaymentModal } from "./components/PaymentModal";
 import { ProfilePanel } from "./components/ProfilePanel";
 import { ReviewsSection } from "./components/ReviewsSection";
-import { TrackOrderPage } from "./components/TrackOrderPage";
 import { Toaster } from "./components/ui/sonner";
+
+const AdminPage = lazy(() =>
+  import("./components/AdminPage").then((m) => ({ default: m.AdminPage })),
+);
+const TrackOrderPage = lazy(() =>
+  import("./components/TrackOrderPage").then((m) => ({
+    default: m.TrackOrderPage,
+  })),
+);
 import { type CartProduct, CartProvider, useCart } from "./context/CartContext";
 import { useGetAllProducts } from "./hooks/useQueries";
 
@@ -172,7 +179,7 @@ function Nav({
             onClick={() => {
               window.location.hash = "#track";
             }}
-            className="font-body text-sm tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring hidden md:block"
+            className="font-body text-sm tracking-widests uppercase text-muted-foreground hover:text-foreground transition-colors duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             Track
           </button>
@@ -219,6 +226,24 @@ function Nav({
 }
 
 // ─── HERO ─────────────────────────────────────────────────────────────────────
+const heroContainerVariants: Variants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.12,
+    },
+  },
+};
+
+const heroItemVariants: Variants = {
+  hidden: { opacity: 0, y: 60 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.9, ease: "easeOut" },
+  },
+};
+
 function Hero({
   onShopClick,
   settings,
@@ -226,24 +251,6 @@ function Hero({
   onShopClick: () => void;
   settings: HeroSettings;
 }) {
-  const containerVariants: Variants = {
-    hidden: {},
-    visible: {
-      transition: {
-        staggerChildren: 0.12,
-      },
-    },
-  };
-
-  const itemVariants: Variants = {
-    hidden: { opacity: 0, y: 60 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.9, ease: "easeOut" },
-    },
-  };
-
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden">
       {/* Background texture lines */}
@@ -266,13 +273,13 @@ function Hero({
 
       <motion.div
         className="relative z-10 flex flex-col items-center text-center px-6"
-        variants={containerVariants}
+        variants={heroContainerVariants}
         initial="hidden"
         animate="visible"
       >
         {/* Season label */}
         <motion.p
-          variants={itemVariants}
+          variants={heroItemVariants}
           className="font-body text-[10px] tracking-[0.35em] uppercase text-muted-foreground mb-8"
         >
           {settings.seasonLabel}
@@ -280,7 +287,7 @@ function Hero({
 
         {/* Giant wordmark */}
         <motion.h1
-          variants={itemVariants}
+          variants={heroItemVariants}
           className="font-display text-[18vw] md:text-[16vw] lg:text-[14vw] leading-none tracking-tightest text-foreground"
           style={{ fontVariationSettings: '"wght" 900' }}
         >
@@ -289,7 +296,7 @@ function Hero({
 
         {/* Tagline */}
         <motion.p
-          variants={itemVariants}
+          variants={heroItemVariants}
           className="font-body text-base md:text-xl text-muted-foreground mt-4 mb-12 tracking-widest uppercase"
         >
           {settings.tagline}
@@ -297,7 +304,7 @@ function Hero({
 
         {/* CTA */}
         <motion.button
-          variants={itemVariants}
+          variants={heroItemVariants}
           data-ocid="hero.primary_button"
           onClick={onShopClick}
           className="group relative font-display text-sm tracking-[0.2em] uppercase px-10 py-4 bg-foreground text-background hover:bg-foreground/90 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background"
@@ -346,10 +353,17 @@ function ProductDetailModal({
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
 
   // Read admin product metadata (description, availableSizes) from localStorage
-  const adminProducts = readLocalStorage<
-    Array<{ id: number; availableSizes?: string[]; description?: string }>
-  >("jade_products", []);
-  const adminMeta = adminProducts.find((p) => p.id === Number(product.id));
+  const adminProducts = useMemo(
+    () =>
+      readLocalStorage<
+        Array<{ id: number; availableSizes?: string[]; description?: string }>
+      >("jade_products", []),
+    [],
+  );
+  const adminMeta = useMemo(
+    () => adminProducts.find((p) => p.id === Number(product.id)),
+    [adminProducts, product.id],
+  );
   const availableSizes = adminMeta?.availableSizes ?? ["S", "M", "L", "XL"];
   const description = adminMeta?.description ?? "";
 
@@ -848,57 +862,73 @@ function ProductsSection() {
   const [detailImages, setDetailImages] = useState<string[]>([]);
 
   // Prefer admin-managed products from localStorage (they include images array)
-  const adminProducts = readLocalStorage<
-    Array<{
-      id: number;
-      name: string;
-      category: string;
-      priceCents: number;
-      images?: string[];
-      imageUrl?: string; // legacy
-    }>
-  >("jade_products", []);
+  const adminProducts = useMemo(
+    () =>
+      readLocalStorage<
+        Array<{
+          id: number;
+          name: string;
+          category: string;
+          priceCents: number;
+          images?: string[];
+          imageUrl?: string; // legacy
+        }>
+      >("jade_products", []),
+    [],
+  );
 
   // Migrate legacy imageUrl → images
-  const migratedAdminProducts = adminProducts.map((p) => ({
-    ...p,
-    images: p.images ?? (p.imageUrl ? [p.imageUrl] : []),
-  }));
+  const migratedAdminProducts = useMemo(
+    () =>
+      adminProducts.map((p) => ({
+        ...p,
+        images: p.images ?? (p.imageUrl ? [p.imageUrl] : []),
+      })),
+    [adminProducts],
+  );
 
-  const displayProducts =
-    migratedAdminProducts.length > 0
-      ? migratedAdminProducts
-      : products && products.length > 0
-        ? products
-        : FALLBACK_PRODUCTS;
+  const displayProducts = useMemo(
+    () =>
+      migratedAdminProducts.length > 0
+        ? migratedAdminProducts
+        : products && products.length > 0
+          ? products
+          : FALLBACK_PRODUCTS,
+    [migratedAdminProducts, products],
+  );
 
-  const getImages = (
-    product: (typeof displayProducts)[0],
-    index: number,
-  ): string[] => {
-    // Admin product with images array
-    if (
-      "images" in product &&
-      Array.isArray((product as { images?: string[] }).images)
-    ) {
-      const imgs = (product as { images: string[] }).images.filter(Boolean);
-      if (imgs.length > 0) return imgs;
-    }
-    // Fallback product with image field
-    if ("image" in product) {
-      return [(product as (typeof FALLBACK_PRODUCTS)[0]).image];
-    }
-    // Default positional fallback
-    const fallback =
-      PRODUCT_IMAGES[index % Object.keys(PRODUCT_IMAGES).length] ??
-      PRODUCT_IMAGES[0];
-    return [fallback];
-  };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: displayProducts used only for type inference, not at runtime
+  const getImages = useMemo(
+    () =>
+      (product: (typeof displayProducts)[0], index: number): string[] => {
+        // Admin product with images array
+        if (
+          "images" in product &&
+          Array.isArray((product as { images?: string[] }).images)
+        ) {
+          const imgs = (product as { images: string[] }).images.filter(Boolean);
+          if (imgs.length > 0) return imgs;
+        }
+        // Fallback product with image field
+        if ("image" in product) {
+          return [(product as (typeof FALLBACK_PRODUCTS)[0]).image];
+        }
+        // Default positional fallback
+        const fallback =
+          PRODUCT_IMAGES[index % Object.keys(PRODUCT_IMAGES).length] ??
+          PRODUCT_IMAGES[0];
+        return [fallback];
+      },
+    [],
+  );
 
-  const getImage = (
-    product: (typeof displayProducts)[0],
-    index: number,
-  ): string => getImages(product, index)[0] ?? "";
+  // biome-ignore lint/correctness/useExhaustiveDependencies: displayProducts used only for type inference, not at runtime
+  const getImage = useMemo(
+    () =>
+      (product: (typeof displayProducts)[0], index: number): string =>
+        getImages(product, index)[0] ?? "",
+    [getImages],
+  );
 
   return (
     <section
@@ -1138,13 +1168,13 @@ function AppInner() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
 
-  const heroSettings = readLocalStorage<HeroSettings>(
-    "jade_hero",
-    DEFAULT_HERO_SETTINGS,
+  const heroSettings = useMemo(
+    () => readLocalStorage<HeroSettings>("jade_hero", DEFAULT_HERO_SETTINGS),
+    [],
   );
-  const aboutSettings = readLocalStorage<AboutSettings>(
-    "jade_about",
-    DEFAULT_ABOUT_SETTINGS,
+  const aboutSettings = useMemo(
+    () => readLocalStorage<AboutSettings>("jade_about", DEFAULT_ABOUT_SETTINGS),
+    [],
   );
 
   const scrollToProducts = () => {
@@ -1233,19 +1263,19 @@ export default function App() {
 
   if (route === "admin") {
     return (
-      <>
+      <Suspense fallback={<div className="min-h-screen bg-background" />}>
         <AdminPage />
         <Toaster />
-      </>
+      </Suspense>
     );
   }
 
   if (route === "track") {
     return (
-      <>
+      <Suspense fallback={<div className="min-h-screen bg-background" />}>
         <TrackOrderPage />
         <Toaster />
-      </>
+      </Suspense>
     );
   }
 
