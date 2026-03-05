@@ -1,8 +1,8 @@
 import {
   ChevronDown,
+  CreditCard,
   Eye,
   EyeOff,
-  LayoutDashboard,
   LogOut,
   Menu,
   MessageSquare,
@@ -14,7 +14,6 @@ import {
   Star,
   Trash2,
   Type,
-  User,
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
@@ -38,6 +37,8 @@ export interface AdminProduct {
   category: string;
   priceCents: number;
   images: string[];
+  description?: string;
+  availableSizes?: string[];
 }
 
 export interface AdminReview {
@@ -91,6 +92,8 @@ const DEFAULT_PRODUCTS: AdminProduct[] = [
     category: "Tops",
     priceCents: 11900,
     images: [],
+    description: "",
+    availableSizes: ["S", "M", "L", "XL"],
   },
   {
     id: 2,
@@ -98,6 +101,8 @@ const DEFAULT_PRODUCTS: AdminProduct[] = [
     category: "Bottoms",
     priceCents: 14500,
     images: [],
+    description: "",
+    availableSizes: ["S", "M", "L", "XL"],
   },
   {
     id: 3,
@@ -105,6 +110,8 @@ const DEFAULT_PRODUCTS: AdminProduct[] = [
     category: "Tops",
     priceCents: 6500,
     images: [],
+    description: "",
+    availableSizes: ["S", "M", "L", "XL"],
   },
   {
     id: 4,
@@ -112,6 +119,8 @@ const DEFAULT_PRODUCTS: AdminProduct[] = [
     category: "Outerwear",
     priceCents: 21900,
     images: [],
+    description: "",
+    availableSizes: ["S", "M", "L", "XL"],
   },
   {
     id: 5,
@@ -119,6 +128,8 @@ const DEFAULT_PRODUCTS: AdminProduct[] = [
     category: "Bottoms",
     priceCents: 9800,
     images: [],
+    description: "",
+    availableSizes: ["S", "M", "L", "XL"],
   },
   {
     id: 6,
@@ -126,6 +137,8 @@ const DEFAULT_PRODUCTS: AdminProduct[] = [
     category: "Accessories",
     priceCents: 4500,
     images: [],
+    description: "",
+    availableSizes: ["S", "M", "L", "XL"],
   },
 ];
 
@@ -228,19 +241,26 @@ function readLS<T>(key: string, fallback: T): T {
   }
 }
 
-// Migrate old single imageUrl to images array
+// Migrate old single imageUrl to images array; fill missing description/availableSizes
 function migrateProducts(products: AdminProduct[]): AdminProduct[] {
   return products.map((p) => {
     const legacy = p as AdminProduct & { imageUrl?: string };
+    let migrated: AdminProduct = p;
     if (!p.images) {
       const imgs = legacy.imageUrl ? [legacy.imageUrl] : [];
       const { imageUrl: _removed, ...rest } = legacy as typeof legacy & {
         imageUrl?: string;
       };
       void _removed;
-      return { ...rest, images: imgs };
+      migrated = { ...rest, images: imgs };
     }
-    return p;
+    if (migrated.description === undefined) {
+      migrated = { ...migrated, description: "" };
+    }
+    if (migrated.availableSizes === undefined) {
+      migrated = { ...migrated, availableSizes: ["S", "M", "L", "XL"] };
+    }
+    return migrated;
   });
 }
 
@@ -253,7 +273,14 @@ function nextId<T extends { id: number }>(arr: T[]): number {
 }
 
 // ─── Sidebar nav items ────────────────────────────────────────────────────────
-type Section = "products" | "reviews" | "orders" | "faq" | "hero" | "about";
+type Section =
+  | "products"
+  | "reviews"
+  | "orders"
+  | "faq"
+  | "hero"
+  | "about"
+  | "payments";
 
 const NAV_ITEMS: Array<{ id: Section; label: string; icon: React.ReactNode }> =
   [
@@ -275,6 +302,11 @@ const NAV_ITEMS: Array<{ id: Section; label: string; icon: React.ReactNode }> =
     },
     { id: "hero", label: "Hero", icon: <Sparkles className="w-4 h-4" /> },
     { id: "about", label: "About", icon: <Type className="w-4 h-4" /> },
+    {
+      id: "payments",
+      label: "Payments",
+      icon: <CreditCard className="w-4 h-4" />,
+    },
   ];
 
 // ─── Reusable UI helpers ──────────────────────────────────────────────────────
@@ -527,6 +559,8 @@ function ProductsSection() {
     category: "",
     priceCents: 0,
     images: [],
+    description: "",
+    availableSizes: ["S", "M", "L", "XL"],
   });
 
   const [form, setForm] = useState<Omit<AdminProduct, "id">>(blank());
@@ -548,6 +582,8 @@ function ProductsSection() {
       category: p.category,
       priceCents: p.priceCents,
       images: [...(p.images ?? [])],
+      description: p.description ?? "",
+      availableSizes: p.availableSizes ?? ["S", "M", "L", "XL"],
     });
     setEditingId(p.id);
     setAddingNew(false);
@@ -651,6 +687,52 @@ function ProductsSection() {
                   onChange={(imgs) => setForm((f) => ({ ...f, images: imgs }))}
                 />
               </div>
+              <div className="sm:col-span-3">
+                <FieldLabel>Description</FieldLabel>
+                <AdminTextarea
+                  value={form.description ?? ""}
+                  onChange={(v) => setForm((f) => ({ ...f, description: v }))}
+                  placeholder="Brief product description..."
+                  rows={2}
+                />
+              </div>
+              <div className="sm:col-span-3">
+                <FieldLabel>Available Sizes</FieldLabel>
+                <div className="flex gap-3 flex-wrap">
+                  {["S", "M", "L", "XL"].map((size) => {
+                    const checked = (
+                      form.availableSizes ?? ["S", "M", "L", "XL"]
+                    ).includes(size);
+                    return (
+                      <label
+                        key={size}
+                        className="flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            const current = form.availableSizes ?? [
+                              "S",
+                              "M",
+                              "L",
+                              "XL",
+                            ];
+                            const next = checked
+                              ? current.filter((s) => s !== size)
+                              : [...current, size];
+                            setForm((f) => ({ ...f, availableSizes: next }));
+                          }}
+                          className="accent-foreground w-3.5 h-3.5"
+                        />
+                        <span className="font-body text-xs tracking-widest uppercase text-muted-foreground">
+                          {size}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
             <div className="flex gap-2 mt-3">
               <button
@@ -743,6 +825,57 @@ function ProductsSection() {
                               setForm((f) => ({ ...f, images: imgs }))
                             }
                           />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <FieldLabel>Description</FieldLabel>
+                          <AdminTextarea
+                            value={form.description ?? ""}
+                            onChange={(v) =>
+                              setForm((f) => ({ ...f, description: v }))
+                            }
+                            placeholder="Brief product description..."
+                            rows={2}
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <FieldLabel>Available Sizes</FieldLabel>
+                          <div className="flex gap-3 flex-wrap">
+                            {["S", "M", "L", "XL"].map((size) => {
+                              const checked = (
+                                form.availableSizes ?? ["S", "M", "L", "XL"]
+                              ).includes(size);
+                              return (
+                                <label
+                                  key={size}
+                                  className="flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => {
+                                      const current = form.availableSizes ?? [
+                                        "S",
+                                        "M",
+                                        "L",
+                                        "XL",
+                                      ];
+                                      const next = checked
+                                        ? current.filter((s) => s !== size)
+                                        : [...current, size];
+                                      setForm((f) => ({
+                                        ...f,
+                                        availableSizes: next,
+                                      }));
+                                    }}
+                                    className="accent-foreground w-3.5 h-3.5"
+                                  />
+                                  <span className="font-body text-xs tracking-widest uppercase text-muted-foreground">
+                                    {size}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -1110,7 +1243,14 @@ function ReviewsSectionAdmin() {
 }
 
 // ─── ORDERS SECTION ────────────────────────────────────────────────────────────
-const ORDER_STATUSES = ["Pending", "Shipped", "Delivered", "Cancelled"];
+const ORDER_STATUSES = [
+  "Pending",
+  "Processing",
+  "Shipped",
+  "Out for Delivery",
+  "Delivered",
+  "Cancelled",
+];
 
 function OrdersSection() {
   const [orders, setOrders] = useState<AdminOrder[]>(() =>
@@ -1132,6 +1272,10 @@ function OrdersSection() {
         return "text-sky-400";
       case "Cancelled":
         return "text-red-400";
+      case "Processing":
+        return "text-amber-400";
+      case "Out for Delivery":
+        return "text-blue-400";
       default:
         return "text-muted-foreground";
     }
@@ -1445,6 +1589,128 @@ function FaqSection() {
   );
 }
 
+// ─── PAYMENT SETTINGS SECTION ─────────────────────────────────────────────────
+const LS_PAYMENT = "jade_payment_settings";
+
+interface PaymentSettings {
+  upiId: string;
+  upiQrUrl: string;
+  bankName: string;
+  accountNumber: string;
+  ifscCode: string;
+}
+
+const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
+  upiId: "",
+  upiQrUrl: "",
+  bankName: "",
+  accountNumber: "",
+  ifscCode: "",
+};
+
+function PaymentSettingsSection() {
+  const [data, setData] = useState<PaymentSettings>(() =>
+    readLS(LS_PAYMENT, DEFAULT_PAYMENT_SETTINGS),
+  );
+
+  const handleSave = () => {
+    writeLS(LS_PAYMENT, data);
+    toast.success("Payment settings saved");
+  };
+
+  return (
+    <section data-ocid="admin.payments_section">
+      <SectionHeader title="Payment Settings" />
+      <div className="max-w-xl space-y-4">
+        <p className="font-body text-xs text-muted-foreground/60 tracking-wide pb-2">
+          Configure your payment details. These will be shown to customers
+          during checkout.
+        </p>
+
+        {/* UPI Settings */}
+        <div className="space-y-3 pb-4 border-b border-border/30">
+          <p
+            className="font-display text-sm tracking-tightest text-foreground"
+            style={{ fontVariationSettings: '"wght" 700' }}
+          >
+            UPI Details
+          </p>
+          <div>
+            <FieldLabel>UPI ID</FieldLabel>
+            <AdminInput
+              data-ocid="admin.payments.upi_id_input"
+              value={data.upiId}
+              onChange={(v) => setData((d) => ({ ...d, upiId: v }))}
+              placeholder="yourname@upi"
+            />
+          </div>
+          <div>
+            <FieldLabel>UPI QR Code Image URL</FieldLabel>
+            <AdminInput
+              data-ocid="admin.payments.upi_qr_input"
+              value={data.upiQrUrl}
+              onChange={(v) => setData((d) => ({ ...d, upiQrUrl: v }))}
+              placeholder="https://example.com/qr.png"
+            />
+            {data.upiQrUrl && (
+              <img
+                src={data.upiQrUrl}
+                alt="QR Preview"
+                className="mt-2 w-24 h-24 object-contain border border-border/40 bg-white"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Bank Account Settings */}
+        <div className="space-y-3">
+          <p
+            className="font-display text-sm tracking-tightest text-foreground"
+            style={{ fontVariationSettings: '"wght" 700' }}
+          >
+            Bank Account Details
+          </p>
+          <div>
+            <FieldLabel>Account Holder Name</FieldLabel>
+            <AdminInput
+              data-ocid="admin.payments.bank_name_input"
+              value={data.bankName}
+              onChange={(v) => setData((d) => ({ ...d, bankName: v }))}
+              placeholder="JADE Clothing"
+            />
+          </div>
+          <div>
+            <FieldLabel>Account Number</FieldLabel>
+            <AdminInput
+              data-ocid="admin.payments.account_number_input"
+              value={data.accountNumber}
+              onChange={(v) => setData((d) => ({ ...d, accountNumber: v }))}
+              placeholder="1234567890"
+            />
+          </div>
+          <div>
+            <FieldLabel>IFSC Code</FieldLabel>
+            <AdminInput
+              data-ocid="admin.payments.ifsc_input"
+              value={data.ifscCode}
+              onChange={(v) => setData((d) => ({ ...d, ifscCode: v }))}
+              placeholder="HDFC0001234"
+            />
+          </div>
+        </div>
+
+        <SaveButton
+          data-ocid="admin.payments.save_button"
+          onClick={handleSave}
+        />
+      </div>
+    </section>
+  );
+}
+
 // ─── HERO SECTION EDITOR ──────────────────────────────────────────────────────
 function HeroSectionEditor() {
   const [data, setData] = useState<AdminHero>(() =>
@@ -1687,6 +1953,8 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         return <HeroSectionEditor />;
       case "about":
         return <AboutSectionEditor />;
+      case "payments":
+        return <PaymentSettingsSection />;
     }
   };
 

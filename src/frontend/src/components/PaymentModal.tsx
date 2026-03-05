@@ -1,3 +1,4 @@
+import type { AdminOrder } from "@/components/AdminPage";
 import {
   Dialog,
   DialogContent,
@@ -8,14 +9,24 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { CartItem } from "@/context/CartContext";
 import {
   ArrowLeft,
+  CheckCircle,
   CheckCircle2,
   CreditCard,
+  Loader2,
   Smartphone,
   Truck,
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
+
+interface PaymentSettings {
+  upiId?: string;
+  upiQrUrl?: string;
+  bankName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
+}
 
 interface PaymentModalProps {
   open: boolean;
@@ -161,6 +172,9 @@ export function PaymentModal({
   const [upiId, setUpiId] = useState("");
   const [placing, setPlacing] = useState(false);
   const [orderNo, setOrderNo] = useState("");
+  const [pinLookupState, setPinLookupState] = useState<
+    "idle" | "loading" | "found" | "error"
+  >("idle");
 
   const resetForm = () => {
     setStep("address");
@@ -172,6 +186,7 @@ export function PaymentModal({
     setExpiry("");
     setCvv("");
     setUpiId("");
+    setPinLookupState("idle");
   };
 
   const handleClose = () => {
@@ -203,8 +218,52 @@ export function PaymentModal({
   const handlePlaceOrder = () => {
     setPlacing(true);
     setTimeout(() => {
+      const generated = generateOrderNo(); // e.g. "#JD-1234"
+      const orderNoClean = generated.replace(/^#/, ""); // "JD-1234"
+
+      // Read existing orders from localStorage
+      let existing: AdminOrder[] = [];
+      try {
+        const raw = localStorage.getItem("jade_orders");
+        if (raw) existing = JSON.parse(raw) as AdminOrder[];
+      } catch {
+        existing = [];
+      }
+
+      const newId = Math.max(0, ...existing.map((o) => o.id)) + 1;
+      const now = new Date();
+      const createdAt = now.toLocaleDateString("en-IN", {
+        month: "short",
+        year: "numeric",
+      });
+
+      const newOrder: AdminOrder = {
+        id: newId,
+        orderNo: orderNoClean,
+        customerName: address.fullName,
+        address: address.line1 + (address.line2 ? `, ${address.line2}` : ""),
+        city: address.city,
+        state: address.state,
+        pincode: address.pinCode,
+        phone: address.phone,
+        paymentMethod: method,
+        items: JSON.stringify(
+          cartItems.map((item) => ({
+            name: item.product.name,
+            qty: item.quantity,
+            price: item.product.priceCents,
+          })),
+        ),
+        totalCents: subtotalCents,
+        status: "Pending",
+        createdAt,
+      };
+
+      const updatedOrders = [...existing, newOrder];
+      localStorage.setItem("jade_orders", JSON.stringify(updatedOrders));
+
       setPlacing(false);
-      setOrderNo(generateOrderNo());
+      setOrderNo(generated);
       setStep("success");
     }, 1200);
   };
@@ -212,6 +271,47 @@ export function PaymentModal({
   const handleContinueShopping = () => {
     onSuccess();
     setTimeout(resetForm, 300);
+  };
+
+  const lookupPin = async (pin: string) => {
+    setPinLookupState("loading");
+    try {
+      const res = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
+      const data = (await res.json()) as Array<{
+        Status: string;
+        PostOffice: Array<{ District: string; State: string }> | null;
+      }>;
+      const result = data[0];
+      if (
+        result?.Status === "Success" &&
+        result.PostOffice &&
+        result.PostOffice.length > 0
+      ) {
+        const district = result.PostOffice[0].District;
+        const apiState = result.PostOffice[0].State;
+        // Match state case-insensitively against INDIAN_STATES list
+        const matchedState =
+          INDIAN_STATES.find(
+            (s) => s.toLowerCase() === apiState.toLowerCase(),
+          ) ?? apiState;
+
+        setAddress((prev) => ({
+          ...prev,
+          city: district,
+          state: matchedState,
+        }));
+        setErrors((prev) => ({
+          ...prev,
+          city: undefined,
+          state: undefined,
+        }));
+        setPinLookupState("found");
+      } else {
+        setPinLookupState("error");
+      }
+    } catch {
+      setPinLookupState("error");
+    }
   };
 
   const formatCardNumber = (val: string) => {
@@ -448,34 +548,53 @@ export function PaymentModal({
                       <label htmlFor="addr-pin" className={labelClass}>
                         PIN Code <span className="text-destructive">*</span>
                       </label>
-                      <input
-                        id="addr-pin"
-                        data-ocid="payment.address_pin_input"
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={6}
-                        value={address.pinCode}
-                        onChange={(e) => {
-                          setAddress((p) => ({
-                            ...p,
-                            pinCode: e.target.value
+                      <div className="relative">
+                        <input
+                          id="addr-pin"
+                          data-ocid="payment.address_pin_input"
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          value={address.pinCode}
+                          onChange={(e) => {
+                            const val = e.target.value
                               .replace(/\D/g, "")
-                              .slice(0, 6),
-                          }));
-                          setErrors((p) => ({ ...p, pinCode: undefined }));
-                        }}
-                        className={
-                          errors.pinCode ? inputErrorClass : inputClass
-                        }
-                        placeholder="400001"
-                        autoComplete="postal-code"
-                      />
+                              .slice(0, 6);
+                            setAddress((p) => ({ ...p, pinCode: val }));
+                            setErrors((p) => ({ ...p, pinCode: undefined }));
+                            if (val.length === 6) {
+                              lookupPin(val);
+                            } else {
+                              setPinLookupState("idle");
+                            }
+                          }}
+                          className={`${errors.pinCode ? inputErrorClass : inputClass} pr-8`}
+                          placeholder="400001"
+                          autoComplete="postal-code"
+                        />
+                        {pinLookupState === "loading" && (
+                          <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/60 animate-spin" />
+                        )}
+                        {pinLookupState === "found" && (
+                          <CheckCircle className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-emerald-400" />
+                        )}
+                      </div>
                       {errors.pinCode && (
                         <p
                           data-ocid="payment.address_pin_error"
                           className="font-body text-[10px] text-destructive mt-1"
                         >
                           {errors.pinCode}
+                        </p>
+                      )}
+                      {pinLookupState === "found" && !errors.pinCode && (
+                        <p className="font-body text-[10px] text-emerald-400 mt-1">
+                          City & state auto-filled
+                        </p>
+                      )}
+                      {pinLookupState === "error" && !errors.pinCode && (
+                        <p className="font-body text-[10px] text-destructive mt-1">
+                          PIN code not found
                         </p>
                       )}
                     </div>
@@ -782,7 +901,7 @@ export function PaymentModal({
                       >
                         <div>
                           <label htmlFor="upi-id" className={labelClass}>
-                            UPI ID
+                            Your UPI ID
                           </label>
                           <input
                             id="upi-id"
@@ -795,6 +914,56 @@ export function PaymentModal({
                             autoComplete="off"
                           />
                         </div>
+
+                        {/* Admin-configured UPI payment details */}
+                        {(() => {
+                          let settings: PaymentSettings = {};
+                          try {
+                            const raw = localStorage.getItem(
+                              "jade_payment_settings",
+                            );
+                            if (raw)
+                              settings = JSON.parse(raw) as PaymentSettings;
+                          } catch {
+                            settings = {};
+                          }
+
+                          if (settings.upiId || settings.upiQrUrl) {
+                            return (
+                              <div className="bg-card border border-border/40 px-4 py-3 space-y-3">
+                                <p className="font-body text-[10px] tracking-[0.25em] uppercase text-muted-foreground/60">
+                                  Pay to
+                                </p>
+                                {settings.upiId && (
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className="font-display text-base text-foreground tracking-tight"
+                                      style={{
+                                        fontVariationSettings: '"wght" 700',
+                                      }}
+                                    >
+                                      {settings.upiId}
+                                    </span>
+                                  </div>
+                                )}
+                                {settings.upiQrUrl && (
+                                  <img
+                                    src={settings.upiQrUrl}
+                                    alt="UPI QR Code"
+                                    className="w-24 h-24 object-contain border border-border/40 bg-white"
+                                  />
+                                )}
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <p className="font-body text-[10px] text-muted-foreground/40 tracking-wide">
+                              No UPI ID configured yet
+                            </p>
+                          );
+                        })()}
+
                         <div className="flex items-center gap-3 pt-1">
                           <span className="font-body text-[10px] tracking-[0.2em] uppercase text-muted-foreground/60">
                             Also accepted:

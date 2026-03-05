@@ -12,6 +12,7 @@ export interface CartProduct {
   priceCents: number;
   image: string;
   category: string;
+  size?: string;
 }
 
 export interface CartItem {
@@ -24,8 +25,8 @@ interface CartContextValue {
   totalCount: number;
   subtotalCents: number;
   addToCart: (product: CartProduct) => void;
-  removeFromCart: (productId: number) => void;
-  updateQty: (productId: number, qty: number) => void;
+  removeFromCart: (productId: number, size?: string) => void;
+  updateQty: (productId: number, qty: number, size?: string) => void;
   clearCart: () => void;
   isOpen: boolean;
   openCart: () => void;
@@ -40,10 +41,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const addToCart = useCallback((product: CartProduct) => {
     setItems((prev) => {
-      const existing = prev.find((i) => i.product.id === product.id);
+      const existing = prev.find(
+        (i) => i.product.id === product.id && i.product.size === product.size,
+      );
       if (existing) {
         return prev.map((i) =>
-          i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i,
+          i.product.id === product.id && i.product.size === product.size
+            ? { ...i, quantity: i.quantity + 1 }
+            : i,
         );
       }
       return [...prev, { product, quantity: 1 }];
@@ -51,21 +56,34 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setIsOpen(true);
   }, []);
 
-  const removeFromCart = useCallback((productId: number) => {
-    setItems((prev) => prev.filter((i) => i.product.id !== productId));
-  }, []);
-
-  const updateQty = useCallback((productId: number, qty: number) => {
-    if (qty <= 0) {
-      setItems((prev) => prev.filter((i) => i.product.id !== productId));
-      return;
-    }
+  const removeFromCart = useCallback((productId: number, size?: string) => {
     setItems((prev) =>
-      prev.map((i) =>
-        i.product.id === productId ? { ...i, quantity: qty } : i,
+      prev.filter(
+        (i) => !(i.product.id === productId && i.product.size === size),
       ),
     );
   }, []);
+
+  const updateQty = useCallback(
+    (productId: number, qty: number, size?: string) => {
+      if (qty <= 0) {
+        setItems((prev) =>
+          prev.filter(
+            (i) => !(i.product.id === productId && i.product.size === size),
+          ),
+        );
+        return;
+      }
+      setItems((prev) =>
+        prev.map((i) =>
+          i.product.id === productId && i.product.size === size
+            ? { ...i, quantity: qty }
+            : i,
+        ),
+      );
+    },
+    [],
+  );
 
   const clearCart = useCallback(() => {
     setItems([]);

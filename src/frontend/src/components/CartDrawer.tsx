@@ -97,14 +97,23 @@ export function CartDrawer({ onCheckout }: { onCheckout?: () => void }) {
                             >
                               {item.product.name}
                             </p>
-                            <p className="font-body text-xs text-muted-foreground tracking-widest uppercase mt-0.5">
-                              {item.product.category}
-                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <p className="font-body text-xs text-muted-foreground tracking-widest uppercase">
+                                {item.product.category}
+                              </p>
+                              {item.product.size && (
+                                <span className="font-body text-[10px] tracking-widest uppercase text-muted-foreground/60">
+                                  · {item.product.size}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <button
                             type="button"
                             data-ocid={`cart.delete_button.${index + 1}`}
-                            onClick={() => removeFromCart(item.product.id)}
+                            onClick={() =>
+                              removeFromCart(item.product.id, item.product.size)
+                            }
                             className="text-muted-foreground/40 hover:text-destructive transition-colors duration-200 p-0.5 shrink-0"
                             aria-label={`Remove ${item.product.name}`}
                           >
@@ -119,7 +128,11 @@ export function CartDrawer({ onCheckout }: { onCheckout?: () => void }) {
                               type="button"
                               data-ocid={`cart.qty_decrease.${index + 1}`}
                               onClick={() =>
-                                updateQty(item.product.id, item.quantity - 1)
+                                updateQty(
+                                  item.product.id,
+                                  item.quantity - 1,
+                                  item.product.size,
+                                )
                               }
                               className="w-7 h-7 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors duration-150"
                               aria-label="Decrease quantity"
@@ -133,7 +146,11 @@ export function CartDrawer({ onCheckout }: { onCheckout?: () => void }) {
                               type="button"
                               data-ocid={`cart.qty_increase.${index + 1}`}
                               onClick={() =>
-                                updateQty(item.product.id, item.quantity + 1)
+                                updateQty(
+                                  item.product.id,
+                                  item.quantity + 1,
+                                  item.product.size,
+                                )
                               }
                               className="w-7 h-7 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors duration-150"
                               aria-label="Increase quantity"

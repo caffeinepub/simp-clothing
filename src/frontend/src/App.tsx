@@ -15,6 +15,7 @@ import { ChatWidget } from "./components/ChatWidget";
 import { PaymentModal } from "./components/PaymentModal";
 import { ProfilePanel } from "./components/ProfilePanel";
 import { ReviewsSection } from "./components/ReviewsSection";
+import { TrackOrderPage } from "./components/TrackOrderPage";
 import { Toaster } from "./components/ui/sonner";
 import { type CartProduct, CartProvider, useCart } from "./context/CartContext";
 import { useGetAllProducts } from "./hooks/useQueries";
@@ -161,9 +162,19 @@ function Nav({
             type="button"
             data-ocid="nav.about_link"
             onClick={onAboutClick}
-            className="font-body text-sm tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="font-body text-sm tracking-widests uppercase text-muted-foreground hover:text-foreground transition-colors duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring hidden md:block"
           >
             About
+          </button>
+          <button
+            type="button"
+            data-ocid="nav.track_order_link"
+            onClick={() => {
+              window.location.hash = "#track";
+            }}
+            className="font-body text-sm tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring hidden md:block"
+          >
+            Track
           </button>
 
           {/* Profile button */}
@@ -331,8 +342,24 @@ function ProductDetailModal({
 }: ProductDetailProps) {
   const { addToCart } = useCart();
   const [imgIdx, setImgIdx] = useState(0);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
 
-  // Reset image index when product changes
+  // Read admin product metadata (description, availableSizes) from localStorage
+  const adminProducts = readLocalStorage<
+    Array<{ id: number; availableSizes?: string[]; description?: string }>
+  >("jade_products", []);
+  const adminMeta = adminProducts.find((p) => p.id === Number(product.id));
+  const availableSizes = adminMeta?.availableSizes ?? ["S", "M", "L", "XL"];
+  const description = adminMeta?.description ?? "";
+
+  // Reset selected size when product changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset on product id change
+  useEffect(() => {
+    setSelectedSize(null);
+    setSizeGuideOpen(false);
+  }, [product.id]);
+
   const displayImages =
     images.length > 0
       ? images
@@ -354,6 +381,7 @@ function ProductDetailModal({
       priceCents: Number(product.priceCents),
       image: displayImages[0],
       category: product.category,
+      size: selectedSize ?? undefined,
     };
     addToCart(cartProduct);
     onClose();
@@ -469,15 +497,60 @@ function ProductDetailModal({
                   {product.name}
                 </h2>
                 <p
-                  className="font-display text-2xl text-foreground mb-8"
+                  className="font-display text-2xl text-foreground mb-6"
                   style={{ fontVariationSettings: '"wght" 700' }}
                 >
                   {formatPrice(product.priceCents)}
                 </p>
 
+                {/* Description */}
+                {description && (
+                  <p className="font-body text-sm text-muted-foreground leading-relaxed mb-6">
+                    {description}
+                  </p>
+                )}
+
+                {/* Size selector */}
+                {availableSizes.length > 0 && (
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="font-body text-[10px] tracking-[0.25em] uppercase text-muted-foreground">
+                        Size
+                      </p>
+                      <button
+                        type="button"
+                        data-ocid="product_detail.size_guide_button"
+                        onClick={() => setSizeGuideOpen(true)}
+                        className="font-body text-[10px] tracking-[0.2em] uppercase text-muted-foreground/60 hover:text-foreground transition-colors underline underline-offset-2"
+                      >
+                        Size Guide
+                      </button>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      {["S", "M", "L", "XL"]
+                        .filter((s) => availableSizes.includes(s))
+                        .map((size) => (
+                          <button
+                            key={size}
+                            type="button"
+                            data-ocid={`product_detail.size_button_${size.toLowerCase()}`}
+                            onClick={() => setSelectedSize(size)}
+                            className={`w-12 h-10 border font-body text-xs tracking-widest uppercase transition-all duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground ${
+                              selectedSize === size
+                                ? "border-foreground bg-foreground text-background"
+                                : "border-border/60 text-muted-foreground hover:border-foreground/60 hover:text-foreground"
+                            }`}
+                          >
+                            {size}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Thumbnail strip (if multiple images) */}
                 {displayImages.length > 1 && (
-                  <div className="flex gap-2 mb-8 flex-wrap">
+                  <div className="flex gap-2 mb-6 flex-wrap">
                     {displayImages.map((src, i) => (
                       <button
                         // biome-ignore lint/suspicious/noArrayIndexKey: positional thumbs
@@ -501,15 +574,147 @@ function ProductDetailModal({
               <motion.button
                 type="button"
                 data-ocid="product_detail.add_to_cart_button"
-                onClick={handleAddToCart}
-                className="w-full py-4 bg-foreground text-background font-display text-sm tracking-[0.2em] uppercase hover:bg-foreground/90 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                onClick={
+                  availableSizes.length === 0 || selectedSize
+                    ? handleAddToCart
+                    : undefined
+                }
+                disabled={availableSizes.length > 0 && !selectedSize}
+                className={`w-full py-4 font-display text-sm tracking-[0.2em] uppercase transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+                  availableSizes.length > 0 && !selectedSize
+                    ? "bg-foreground/30 text-background/60 cursor-not-allowed"
+                    : "bg-foreground text-background hover:bg-foreground/90 cursor-pointer"
+                }`}
                 style={{ fontVariationSettings: '"wght" 700' }}
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={
+                  availableSizes.length === 0 || selectedSize
+                    ? { scale: 1.01 }
+                    : {}
+                }
+                whileTap={
+                  availableSizes.length === 0 || selectedSize
+                    ? { scale: 0.98 }
+                    : {}
+                }
               >
-                Add to Cart
+                {availableSizes.length > 0 && !selectedSize
+                  ? "Select a Size"
+                  : "Add to Cart"}
               </motion.button>
             </div>
+
+            {/* Size guide overlay */}
+            <AnimatePresence>
+              {sizeGuideOpen && (
+                <motion.div
+                  data-ocid="product_detail.size_guide_modal"
+                  className="absolute inset-0 z-30 bg-background/95 backdrop-blur-sm flex flex-col p-6 overflow-y-auto"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 20 }}
+                  transition={{ duration: 0.22 }}
+                >
+                  <div className="flex items-center justify-between mb-6">
+                    <h3
+                      className="font-display text-xl tracking-tightest text-foreground"
+                      style={{ fontVariationSettings: '"wght" 900' }}
+                    >
+                      Size Guide
+                    </h3>
+                    <button
+                      type="button"
+                      data-ocid="product_detail.size_guide_close_button"
+                      onClick={() => setSizeGuideOpen(false)}
+                      className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label="Close size guide"
+                    >
+                      <XIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <p className="font-body text-xs text-muted-foreground/60 mb-4 tracking-wide">
+                    All measurements in cm (inches in brackets)
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border/40">
+                          {["Size", "Chest", "Waist", "Hip", "Length"].map(
+                            (h) => (
+                              <th
+                                key={h}
+                                className="text-left pb-3 font-body text-[10px] tracking-[0.25em] uppercase text-muted-foreground pr-6"
+                              >
+                                {h}
+                              </th>
+                            ),
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          {
+                            size: "S",
+                            chest: "86–91 (34–36)",
+                            waist: "71–76 (28–30)",
+                            hip: "86–91 (34–36)",
+                            length: "68 (27)",
+                          },
+                          {
+                            size: "M",
+                            chest: "91–97 (36–38)",
+                            waist: "76–81 (30–32)",
+                            hip: "91–97 (36–38)",
+                            length: "70 (27.5)",
+                          },
+                          {
+                            size: "L",
+                            chest: "97–102 (38–40)",
+                            waist: "81–86 (32–34)",
+                            hip: "97–102 (38–40)",
+                            length: "72 (28.5)",
+                          },
+                          {
+                            size: "XL",
+                            chest: "107–112 (42–44)",
+                            waist: "91–97 (36–38)",
+                            hip: "107–112 (42–44)",
+                            length: "74 (29)",
+                          },
+                        ].map((row) => (
+                          <tr
+                            key={row.size}
+                            className="border-b border-border/20"
+                          >
+                            <td
+                              className="py-3 pr-6 font-display text-sm text-foreground"
+                              style={{ fontVariationSettings: '"wght" 700' }}
+                            >
+                              {row.size}
+                            </td>
+                            <td className="py-3 pr-6 font-body text-xs text-muted-foreground">
+                              {row.chest}
+                            </td>
+                            <td className="py-3 pr-6 font-body text-xs text-muted-foreground">
+                              {row.waist}
+                            </td>
+                            <td className="py-3 pr-6 font-body text-xs text-muted-foreground">
+                              {row.hip}
+                            </td>
+                            <td className="py-3 font-body text-xs text-muted-foreground">
+                              {row.length}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="font-body text-[10px] text-muted-foreground/40 mt-6">
+                    If you're between sizes, we recommend sizing up for a
+                    relaxed fit.
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         </motion.div>
       )}
@@ -884,7 +1089,7 @@ function Footer({
         </span>
 
         {/* Nav */}
-        <nav className="flex items-center gap-8">
+        <nav className="flex items-center gap-8 flex-wrap">
           <button
             type="button"
             onClick={onShopClick}
@@ -899,6 +1104,13 @@ function Footer({
           >
             About
           </button>
+          <a
+            href="/#track"
+            data-ocid="footer.track_order_link"
+            className="font-body text-xs tracking-[0.25em] uppercase text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Track Order
+          </a>
         </nav>
 
         {/* Copyright */}
@@ -992,34 +1204,46 @@ function AppInner() {
 }
 
 // ─── APP ─────────────────────────────────────────────────────────────────────
-function useIsAdminRoute() {
-  const [isAdmin, setIsAdmin] = useState(() => {
-    return (
-      window.location.hash === "#admin" || window.location.pathname === "/admin"
-    );
-  });
+type AppRoute = "admin" | "track" | "main";
+
+function detectRoute(): AppRoute {
+  const hash = window.location.hash;
+  if (hash === "#admin" || window.location.pathname === "/admin")
+    return "admin";
+  if (hash === "#track") return "track";
+  return "main";
+}
+
+function useAppRoute(): AppRoute {
+  const [route, setRoute] = useState<AppRoute>(detectRoute);
 
   useEffect(() => {
     const handleHashChange = () => {
-      setIsAdmin(
-        window.location.hash === "#admin" ||
-          window.location.pathname === "/admin",
-      );
+      setRoute(detectRoute());
     };
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
 
-  return isAdmin;
+  return route;
 }
 
 export default function App() {
-  const isAdmin = useIsAdminRoute();
+  const route = useAppRoute();
 
-  if (isAdmin) {
+  if (route === "admin") {
     return (
       <>
         <AdminPage />
+        <Toaster />
+      </>
+    );
+  }
+
+  if (route === "track") {
+    return (
+      <>
+        <TrackOrderPage />
         <Toaster />
       </>
     );
