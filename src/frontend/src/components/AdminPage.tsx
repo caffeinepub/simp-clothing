@@ -3,6 +3,7 @@ import {
   CreditCard,
   Eye,
   EyeOff,
+  FolderOpen,
   LogOut,
   Menu,
   MessageSquare,
@@ -29,6 +30,14 @@ const LS_ORDERS = "jade_orders";
 const LS_FAQ = "jade_faq";
 const LS_HERO = "jade_hero";
 const LS_ABOUT = "jade_about";
+const LS_CATEGORIES = "jade_categories";
+
+type CategoryTree = Record<string, string[]>;
+
+const DEFAULT_CATEGORY_TREE: CategoryTree = {
+  "Men's": ["Tops", "Bottoms", "Outerwear", "Accessories"],
+  "Women's": ["Tops", "Bottoms", "Outerwear", "Accessories"],
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface AdminProduct {
@@ -275,6 +284,7 @@ function nextId<T extends { id: number }>(arr: T[]): number {
 // ─── Sidebar nav items ────────────────────────────────────────────────────────
 type Section =
   | "products"
+  | "categories"
   | "reviews"
   | "orders"
   | "faq"
@@ -288,6 +298,11 @@ const NAV_ITEMS: Array<{ id: Section; label: string; icon: React.ReactNode }> =
       id: "products",
       label: "Products",
       icon: <Package className="w-4 h-4" />,
+    },
+    {
+      id: "categories",
+      label: "Categories",
+      icon: <FolderOpen className="w-4 h-4" />,
     },
     { id: "reviews", label: "Reviews", icon: <Star className="w-4 h-4" /> },
     {
@@ -545,6 +560,140 @@ function ImagesEditor({
   );
 }
 
+// ─── Category selector helper ─────────────────────────────────────────────────
+function CategorySelector({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const tree = readLS<CategoryTree>(LS_CATEGORIES, DEFAULT_CATEGORY_TREE);
+  const genders = Object.keys(tree);
+
+  // Parse current value
+  const isCustom =
+    value !== "" &&
+    !genders.some(
+      (g) =>
+        value === g || value.startsWith(`${g} > `) || value.startsWith(`${g}>`),
+    );
+
+  // Determine selected gender and sub from current value
+  let selectedGender = "";
+  let selectedSub = "";
+  if (!isCustom && value) {
+    if (value.includes(" > ")) {
+      const parts = value.split(" > ");
+      selectedGender = parts[0] ?? "";
+      selectedSub = parts[1] ?? "";
+    } else {
+      selectedGender = value;
+    }
+  }
+
+  const [useCustom, setUseCustom] = useState(isCustom);
+
+  const handleGenderChange = (g: string) => {
+    if (g === "__custom__") {
+      setUseCustom(true);
+      onChange("");
+    } else {
+      setUseCustom(false);
+      onChange(g);
+    }
+  };
+
+  const handleSubChange = (sub: string) => {
+    if (!sub) {
+      onChange(selectedGender);
+    } else {
+      onChange(`${selectedGender} > ${sub}`);
+    }
+  };
+
+  if (useCustom) {
+    return (
+      <div className="space-y-1.5">
+        <div className="flex gap-2 items-center">
+          <AdminInput
+            value={value}
+            onChange={onChange}
+            placeholder="Custom category"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setUseCustom(false);
+              onChange("");
+            }}
+            className="shrink-0 font-body text-[10px] tracking-[0.2em] uppercase text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+          >
+            Use tree
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const subCategories = selectedGender ? (tree[selectedGender] ?? []) : [];
+
+  return (
+    <div className="space-y-2">
+      {/* Gender select */}
+      <div className="relative">
+        <select
+          value={selectedGender}
+          onChange={(e) => handleGenderChange(e.target.value)}
+          className="w-full appearance-none bg-card border border-border/40 px-3 py-2 font-body text-sm text-foreground focus:outline-none focus:border-foreground/40 transition-colors duration-150 pr-8 cursor-pointer"
+          style={{ colorScheme: "dark" }}
+        >
+          <option value="">— Select gender group —</option>
+          {genders.map((g) => (
+            <option key={g} value={g}>
+              {g}
+            </option>
+          ))}
+          <option value="__custom__">Other / custom</option>
+        </select>
+        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+      </div>
+
+      {/* Sub-category select */}
+      {selectedGender && subCategories.length > 0 && (
+        <div className="relative">
+          <select
+            value={selectedSub}
+            onChange={(e) => handleSubChange(e.target.value)}
+            className="w-full appearance-none bg-card border border-border/40 px-3 py-2 font-body text-sm text-foreground focus:outline-none focus:border-foreground/40 transition-colors duration-150 pr-8 cursor-pointer"
+            style={{ colorScheme: "dark" }}
+          >
+            <option value="">— All {selectedGender} —</option>
+            {subCategories.map((sub) => (
+              <option key={sub} value={sub}>
+                {sub}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+        </div>
+      )}
+
+      {/* Switch to custom */}
+      <button
+        type="button"
+        onClick={() => {
+          setUseCustom(true);
+          onChange(value);
+        }}
+        className="font-body text-[9px] tracking-[0.2em] uppercase text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+      >
+        Or type custom category
+      </button>
+    </div>
+  );
+}
+
 // ─── PRODUCTS SECTION ─────────────────────────────────────────────────────────
 function ProductsSection() {
   const [products, setProducts] = useState<AdminProduct[]>(() =>
@@ -661,10 +810,9 @@ function ProductsSection() {
               </div>
               <div>
                 <FieldLabel>Category</FieldLabel>
-                <AdminInput
+                <CategorySelector
                   value={form.category}
                   onChange={(v) => setForm((f) => ({ ...f, category: v }))}
-                  placeholder="Tops"
                 />
               </div>
               <div>
@@ -798,7 +946,7 @@ function ProductsSection() {
                         </div>
                         <div>
                           <FieldLabel>Category</FieldLabel>
-                          <AdminInput
+                          <CategorySelector
                             value={form.category}
                             onChange={(v) =>
                               setForm((f) => ({ ...f, category: v }))
@@ -967,6 +1115,365 @@ function ProductsSection() {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
         label={deleteTarget?.name ?? "product"}
+      />
+    </section>
+  );
+}
+
+// ─── ADMIN CATEGORIES SECTION ─────────────────────────────────────────────────
+function AdminCategoriesSection() {
+  const [tree, setTree] = useState<CategoryTree>(() =>
+    readLS(LS_CATEGORIES, DEFAULT_CATEGORY_TREE),
+  );
+
+  // New gender group input
+  const [newGender, setNewGender] = useState("");
+  // New sub-category inputs per gender: Record<gender, string>
+  const [newSubInputs, setNewSubInputs] = useState<Record<string, string>>({});
+  // Renaming state
+  const [renamingGender, setRenamingGender] = useState<string | null>(null);
+  const [renameGenderValue, setRenameGenderValue] = useState("");
+  const [renamingSub, setRenamingSub] = useState<{
+    gender: string;
+    sub: string;
+  } | null>(null);
+  const [renameSubValue, setRenameSubValue] = useState("");
+  // Delete confirmation
+  const [deleteGenderTarget, setDeleteGenderTarget] = useState<string | null>(
+    null,
+  );
+  const [deleteSubTarget, setDeleteSubTarget] = useState<{
+    gender: string;
+    sub: string;
+  } | null>(null);
+
+  const saveTree = (updated: CategoryTree) => {
+    setTree(updated);
+    writeLS(LS_CATEGORIES, updated);
+    // Notify other tabs
+    window.dispatchEvent(new Event("storage"));
+    toast.success("Categories saved");
+  };
+
+  // ── Gender group operations ──
+  const addGender = () => {
+    const g = newGender.trim();
+    if (!g) {
+      toast.error("Gender group name is required");
+      return;
+    }
+    if (tree[g]) {
+      toast.error("That group already exists");
+      return;
+    }
+    saveTree({ ...tree, [g]: [] });
+    setNewGender("");
+  };
+
+  const startRenameGender = (gender: string) => {
+    setRenamingGender(gender);
+    setRenameGenderValue(gender);
+  };
+
+  const confirmRenameGender = () => {
+    if (!renamingGender) return;
+    const newName = renameGenderValue.trim();
+    if (!newName || newName === renamingGender) {
+      setRenamingGender(null);
+      return;
+    }
+    if (tree[newName]) {
+      toast.error("That group name already exists");
+      return;
+    }
+    const updated: CategoryTree = {};
+    for (const [key, val] of Object.entries(tree)) {
+      updated[key === renamingGender ? newName : key] = val;
+    }
+    saveTree(updated);
+    setRenamingGender(null);
+  };
+
+  const confirmDeleteGender = () => {
+    if (!deleteGenderTarget) return;
+    const updated = { ...tree };
+    delete updated[deleteGenderTarget];
+    saveTree(updated);
+    setDeleteGenderTarget(null);
+  };
+
+  // ── Sub-category operations ──
+  const addSub = (gender: string) => {
+    const sub = (newSubInputs[gender] ?? "").trim();
+    if (!sub) {
+      toast.error("Sub-category name is required");
+      return;
+    }
+    if ((tree[gender] ?? []).includes(sub)) {
+      toast.error("That sub-category already exists");
+      return;
+    }
+    saveTree({ ...tree, [gender]: [...(tree[gender] ?? []), sub] });
+    setNewSubInputs((prev) => ({ ...prev, [gender]: "" }));
+  };
+
+  const startRenameSub = (gender: string, sub: string) => {
+    setRenamingSub({ gender, sub });
+    setRenameSubValue(sub);
+  };
+
+  const confirmRenameSub = () => {
+    if (!renamingSub) return;
+    const { gender, sub } = renamingSub;
+    const newName = renameSubValue.trim();
+    if (!newName || newName === sub) {
+      setRenamingSub(null);
+      return;
+    }
+    saveTree({
+      ...tree,
+      [gender]: (tree[gender] ?? []).map((s) => (s === sub ? newName : s)),
+    });
+    setRenamingSub(null);
+  };
+
+  const confirmDeleteSub = () => {
+    if (!deleteSubTarget) return;
+    const { gender, sub } = deleteSubTarget;
+    saveTree({
+      ...tree,
+      [gender]: (tree[gender] ?? []).filter((s) => s !== sub),
+    });
+    setDeleteSubTarget(null);
+  };
+
+  const genders = Object.keys(tree);
+
+  return (
+    <section data-ocid="admin.categories_section">
+      <SectionHeader title="Categories" />
+
+      <p className="font-body text-xs text-muted-foreground/60 mb-6 tracking-wide">
+        Manage gender groups and sub-categories. Changes reflect on the
+        customer-facing category filter immediately.
+      </p>
+
+      {/* Add new gender group */}
+      <div className="mb-8 p-4 bg-card border border-border/40">
+        <p
+          className="font-display text-sm tracking-tightest text-foreground mb-3"
+          style={{ fontVariationSettings: '"wght" 700' }}
+        >
+          Add Gender Group
+        </p>
+        <div className="flex gap-2 items-center">
+          <AdminInput
+            value={newGender}
+            onChange={setNewGender}
+            placeholder="e.g. Kids, Unisex"
+          />
+          <button
+            type="button"
+            data-ocid="admin.categories.add_gender_button"
+            onClick={addGender}
+            className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-foreground text-background font-body text-xs tracking-widest uppercase hover:bg-foreground/90 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add
+          </button>
+        </div>
+      </div>
+
+      {/* Gender groups list */}
+      <div className="space-y-6">
+        {genders.length === 0 && (
+          <div
+            data-ocid="admin.categories.empty_state"
+            className="py-10 flex flex-col items-center border border-border/30 bg-card/30"
+          >
+            <FolderOpen className="w-8 h-8 text-muted-foreground/30 mb-3" />
+            <p className="font-body text-xs text-muted-foreground/50">
+              No categories yet
+            </p>
+          </div>
+        )}
+
+        {genders.map((gender, gi) => (
+          <motion.div
+            key={gender}
+            data-ocid={`admin.categories.gender_item.${gi + 1}`}
+            className="border border-border/40 bg-card/20"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.18, delay: gi * 0.04 }}
+          >
+            {/* Gender header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border/30">
+              {renamingGender === gender ? (
+                <div className="flex items-center gap-2 flex-1 mr-4">
+                  <AdminInput
+                    value={renameGenderValue}
+                    onChange={setRenameGenderValue}
+                    placeholder="Gender group name"
+                  />
+                  <button
+                    type="button"
+                    onClick={confirmRenameGender}
+                    className="shrink-0 px-3 py-1.5 bg-foreground text-background font-body text-[10px] tracking-widest uppercase hover:bg-foreground/90 transition-colors"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRenamingGender(null)}
+                    className="shrink-0 px-3 py-1.5 border border-border/60 text-muted-foreground font-body text-[10px] tracking-widest uppercase hover:text-foreground transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <span
+                  className="font-display text-base tracking-tightest text-foreground"
+                  style={{ fontVariationSettings: '"wght" 700' }}
+                >
+                  {gender}
+                </span>
+              )}
+
+              {renamingGender !== gender && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => startRenameGender(gender)}
+                    className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label={`Rename ${gender}`}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteGenderTarget(gender)}
+                    className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
+                    aria-label={`Delete ${gender}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Sub-categories */}
+            <div className="px-4 py-3">
+              {(tree[gender] ?? []).length === 0 && (
+                <p className="font-body text-[10px] text-muted-foreground/40 mb-3">
+                  No sub-categories yet
+                </p>
+              )}
+
+              <div className="flex flex-wrap gap-2 mb-3">
+                {(tree[gender] ?? []).map((sub, si) => (
+                  <div
+                    key={sub}
+                    data-ocid={`admin.categories.subcategory_item.${si + 1}`}
+                    className="flex items-center gap-1 border border-border/40 bg-card/40"
+                  >
+                    {renamingSub?.gender === gender &&
+                    renamingSub.sub === sub ? (
+                      <div className="flex items-center gap-1.5 px-2 py-1">
+                        <input
+                          type="text"
+                          value={renameSubValue}
+                          onChange={(e) => setRenameSubValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") confirmRenameSub();
+                            if (e.key === "Escape") setRenamingSub(null);
+                          }}
+                          className="w-24 bg-transparent border-b border-foreground/40 font-body text-xs text-foreground focus:outline-none px-0.5"
+                          // biome-ignore lint/a11y/noAutofocus: inline rename needs immediate focus
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={confirmRenameSub}
+                          className="text-foreground hover:text-foreground/70 transition-colors"
+                          aria-label="Confirm rename"
+                        >
+                          <Plus className="w-3 h-3 rotate-45" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRenamingSub(null)}
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                          aria-label="Cancel rename"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="font-body text-[10px] tracking-[0.2em] uppercase text-muted-foreground px-3 py-1.5">
+                          {sub}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => startRenameSub(gender, sub)}
+                          className="px-1 py-1.5 text-muted-foreground/50 hover:text-foreground transition-colors"
+                          aria-label={`Rename ${sub}`}
+                        >
+                          <Pencil className="w-2.5 h-2.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteSubTarget({ gender, sub })}
+                          className="px-1.5 py-1.5 text-muted-foreground/50 hover:text-destructive transition-colors"
+                          aria-label={`Delete ${sub}`}
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Add sub-category */}
+              <div className="flex gap-2 items-center mt-2">
+                <AdminInput
+                  value={newSubInputs[gender] ?? ""}
+                  onChange={(v) =>
+                    setNewSubInputs((prev) => ({ ...prev, [gender]: v }))
+                  }
+                  placeholder="New sub-category (e.g. Denim)"
+                />
+                <button
+                  type="button"
+                  data-ocid={`admin.categories.add_subcategory_button.${gi + 1}`}
+                  onClick={() => addSub(gender)}
+                  className="shrink-0 flex items-center gap-1 px-3 py-2 border border-border/60 text-muted-foreground font-body text-xs tracking-widest uppercase hover:text-foreground hover:border-foreground/40 transition-colors"
+                >
+                  <Plus className="w-3 h-3" />
+                  Add
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Confirm delete gender */}
+      <ConfirmDeleteModal
+        open={!!deleteGenderTarget}
+        onConfirm={confirmDeleteGender}
+        onCancel={() => setDeleteGenderTarget(null)}
+        label={deleteGenderTarget ?? "gender group"}
+      />
+
+      {/* Confirm delete sub-category */}
+      <ConfirmDeleteModal
+        open={!!deleteSubTarget}
+        onConfirm={confirmDeleteSub}
+        onCancel={() => setDeleteSubTarget(null)}
+        label={deleteSubTarget ? `${deleteSubTarget.sub}` : "sub-category"}
       />
     </section>
   );
@@ -1943,6 +2450,8 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     switch (activeSection) {
       case "products":
         return <ProductsSection />;
+      case "categories":
+        return <AdminCategoriesSection />;
       case "reviews":
         return <ReviewsSectionAdmin />;
       case "orders":

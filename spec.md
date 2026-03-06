@@ -1,61 +1,32 @@
-# JADE Clothing Store
+# JADE Clothing
 
 ## Current State
-
-Full-stack clothing brand site with:
-- Homepage: hero, products grid, about section, reviews
-- Cart drawer + 3-step checkout modal (address → payment → confirmation)
-- Admin panel at `/#admin` with password protection
-- Admin sections: Products, Reviews, Orders, FAQ, Hero, About
-- Orders stored in `localStorage` key `jade_orders`
-- PaymentModal handles checkout but does NOT save orders to localStorage — this is the root cause of orders not appearing in admin
-- Address validation: format only (6-digit PIN, 10-digit phone)
-- No PIN lookup against external API
-- No UPI/bank details configuration in admin
-- No Track Your Order page for customers
+Full-stack clothing store with dark/moody aesthetic. Products have a flat `category` text field (e.g. "Tops", "Bottoms"). The shop shows all products in one grid. Admin panel manages products, reviews, orders, FAQ, hero, about, and payments via localStorage. No structured category/subcategory system exists.
 
 ## Requested Changes (Diff)
 
 ### Add
-- **PIN code live lookup**: When customer types a 6-digit PIN in the address step, call `https://api.postalpincode.in/pincode/{pin}` (free, no auth). On success auto-fill `city` and `state`. Show inline loading spinner while fetching. Show error if PIN not found.
-- **Track Your Order page**: Accessible via `/#track` (hash route). Customer enters order number (e.g. `#JD-1234`) and sees current status. Status is read from `jade_orders` in localStorage. Statuses displayed with a visual progress timeline: Order Placed → Processing → Shipped → Out for Delivery → Delivered. Cancelled shows as cancelled state.
-- **UPI/Bank account config in admin**: New "Payments" section in admin sidebar. Admin can enter: UPI ID, UPI QR image URL (optional), Bank Account Name, Account Number, IFSC Code. Saved to `jade_payment_settings` in localStorage.
-- **Track Your Order link** in site nav and footer
+- A `CategorySection` component on the main site — shown between the Hero and the Products grid — presenting Men's and Women's as top-level groups, each with sub-category tabs (Tops, Bottoms, Outerwear, Accessories). Clicking a sub-category filters the products grid.
+- A `categories` localStorage key storing the category tree (gender → subcategories array).
+- A **Categories tab** in the admin panel where the admin can:
+  - Add / rename / delete top-level gender groups (Men's, Women's)
+  - Add / rename / delete sub-categories within each gender group
+- Product's `category` field in the admin edit form is replaced with a two-level select: Gender + Sub-category (e.g. "Men's / Tops"), stored as `"Men's > Tops"` in the existing `category` field.
+- The shop section header shows the active filter label and a product count for that filter.
+- An "All" option resets the filter to show every product regardless of category.
 
 ### Modify
-- **Fix order saving**: In `PaymentModal.tsx`, `handlePlaceOrder` must save a complete order object to `jade_orders` in localStorage before showing the success screen. The order must include: id, orderNo, customerName, phone, address (line1+line2), city, state, pincode, paymentMethod, items (stringified cart items), totalCents, status ("Pending"), createdAt (formatted date string).
-- **Payment step UPI section**: When payment method is UPI, show the admin-configured UPI ID (from `jade_payment_settings`) and QR image (if set) so the customer knows where to pay. Fall back to generic placeholder if not configured.
-- **Admin Orders section**: Add "Processing" and "Out for Delivery" to the ORDER_STATUSES array (currently only Pending, Shipped, Delivered, Cancelled). Full list: Pending → Processing → Shipped → Out for Delivery → Delivered → Cancelled.
-- **App routing**: Add `#track` hash route handling alongside existing `#admin` route.
+- `ProductsSection` in `App.tsx` — accepts an optional `activeCategory` prop (format: `"Men's > Tops"` or `null` for all) and filters `displayProducts` accordingly.
+- `AdminPage.tsx` → `ProductsSection` — replace the free-text category input with a two-level dropdown (gender → subcategory) using the categories stored in localStorage.
+- Admin sidebar nav items — add a "Categories" entry between Products and Reviews.
 
 ### Remove
-- Nothing removed
+- Nothing removed; free-text category input is replaced by the structured selector.
 
 ## Implementation Plan
-
-1. **Fix PaymentModal order saving** (`PaymentModal.tsx`):
-   - Read `jade_payment_settings` for UPI display
-   - In `handlePlaceOrder`, construct AdminOrder object from cart items + address + method and append to `jade_orders` in localStorage before transitioning to success step
-   - Show admin-configured UPI ID and QR code on UPI payment step
-
-2. **PIN lookup** (`PaymentModal.tsx`):
-   - On PIN field blur (or when length hits 6), fetch `https://api.postalpincode.in/pincode/{pin}`
-   - Parse response and auto-fill city + state fields
-   - Show loading indicator on the PIN field while fetching
-   - Show inline error if invalid PIN
-
-3. **Admin Payments section** (`AdminPage.tsx`):
-   - Add `"payments"` to Section type and NAV_ITEMS
-   - Create `PaymentSettingsSection` component with fields: UPI ID, QR URL, Bank Name, Account Number, IFSC
-   - Read/write from `jade_payment_settings` localStorage key
-
-4. **Extended order statuses** (`AdminPage.tsx`):
-   - Update ORDER_STATUSES to: `["Pending", "Processing", "Shipped", "Out for Delivery", "Delivered", "Cancelled"]`
-
-5. **Track Your Order page** (`App.tsx` + new `TrackOrder.tsx`):
-   - Add hash route `#track` in `useIsAdminRoute`-style hook
-   - Create `TrackOrderPage` component: input for order number, lookup from `jade_orders`, display status timeline
-   - Add "Track Order" link to Nav and Footer
-
-6. **Nav/Footer** (`App.tsx`):
-   - Add Track Order button/link in Nav and Footer that navigates to `/#track`
+1. Create `CategoriesSection.tsx` component: renders gender tabs (Men's / Women's / All), sub-category chips per gender, and emits the selected filter string upward.
+2. Update `App.tsx`: pass filter state down to `ProductsSection`; insert `CategoriesSection` between Hero and Products.
+3. Create `AdminCategoriesSection` in `AdminPage.tsx`: CRUD for the category tree stored in `jade_categories` localStorage key; default tree is `{ "Men's": ["Tops","Bottoms","Outerwear","Accessories"], "Women's": ["Tops","Bottoms","Outerwear","Accessories"] }`.
+4. Update product add/edit form in `AdminPage.tsx` to use a two-level `<select>` (gender first, then subcategory), writing result as `"Men's > Tops"` into `form.category`.
+5. Add "Categories" to admin sidebar nav.
+6. Update product filter logic in `ProductsSection` to match products by checking if `product.category` starts with the selected filter or equals it.

@@ -10,6 +10,7 @@ import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 
 import type { Product } from "./backend.d";
 import { CartDrawer } from "./components/CartDrawer";
+import { CategoriesSection } from "./components/CategoriesSection";
 import { ChatWidget } from "./components/ChatWidget";
 import { PaymentModal } from "./components/PaymentModal";
 import { ProfilePanel } from "./components/ProfilePanel";
@@ -854,7 +855,11 @@ function SkeletonCard() {
 }
 
 // ─── PRODUCTS SECTION ────────────────────────────────────────────────────────
-function ProductsSection() {
+function ProductsSection({
+  categoryFilter,
+}: {
+  categoryFilter?: string | null;
+}) {
   const { data: products, isLoading } = useGetAllProducts();
   const [detailProduct, setDetailProduct] = useState<
     (Product & { priceCents: number }) | null
@@ -887,7 +892,7 @@ function ProductsSection() {
     [adminProducts],
   );
 
-  const displayProducts = useMemo(
+  const allDisplayProducts = useMemo(
     () =>
       migratedAdminProducts.length > 0
         ? migratedAdminProducts
@@ -897,10 +902,31 @@ function ProductsSection() {
     [migratedAdminProducts, products],
   );
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: displayProducts used only for type inference, not at runtime
+  // Apply category filter
+  const displayProducts = useMemo(() => {
+    if (!categoryFilter) return allDisplayProducts;
+
+    return allDisplayProducts.filter((p) => {
+      const cat = p.category ?? "";
+      // Exact match (e.g. "Men's > Tops")
+      if (cat === categoryFilter) return true;
+      // Gender-only filter (e.g. "Men's") — match any product whose category starts with "Men's"
+      if (!categoryFilter.includes(" > ")) {
+        return (
+          cat === categoryFilter ||
+          cat.startsWith(`${categoryFilter} > `) ||
+          cat.startsWith(`${categoryFilter}>`)
+        );
+      }
+      // Prefix match for hierarchical categories
+      return cat.startsWith(categoryFilter);
+    });
+  }, [allDisplayProducts, categoryFilter]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: allDisplayProducts used only for type inference, not at runtime
   const getImages = useMemo(
     () =>
-      (product: (typeof displayProducts)[0], index: number): string[] => {
+      (product: (typeof allDisplayProducts)[0], index: number): string[] => {
         // Admin product with images array
         if (
           "images" in product &&
@@ -922,32 +948,57 @@ function ProductsSection() {
     [],
   );
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: displayProducts used only for type inference, not at runtime
+  // biome-ignore lint/correctness/useExhaustiveDependencies: allDisplayProducts used only for type inference, not at runtime
   const getImage = useMemo(
     () =>
-      (product: (typeof displayProducts)[0], index: number): string =>
+      (product: (typeof allDisplayProducts)[0], index: number): string =>
         getImages(product, index)[0] ?? "",
     [getImages],
   );
+
+  // Derive display label for active filter
+  const filterLabel = categoryFilter
+    ? categoryFilter.includes(" > ")
+      ? categoryFilter.split(" > ")[1]
+      : categoryFilter
+    : null;
 
   return (
     <section
       id="products"
       data-ocid="products.section"
-      className="px-6 md:px-12 py-24 md:py-32"
+      className="px-6 md:px-12 py-24 md:py-32 pt-10 md:pt-12"
     >
       {/* Section header */}
       <div className="flex items-end justify-between mb-16 border-b border-border pb-6">
-        <motion.h2
-          className="font-display text-5xl md:text-7xl tracking-tightest text-foreground"
-          style={{ fontVariationSettings: '"wght" 900' }}
+        <motion.div
+          className="flex items-baseline gap-4"
           initial={{ opacity: 0, x: -30 }}
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
         >
-          Shop
-        </motion.h2>
+          <h2
+            className="font-display text-5xl md:text-7xl tracking-tightest text-foreground"
+            style={{ fontVariationSettings: '"wght" 900' }}
+          >
+            Shop
+          </h2>
+          <AnimatePresence mode="wait">
+            {filterLabel && (
+              <motion.span
+                key={filterLabel}
+                className="font-body text-sm tracking-[0.25em] uppercase text-muted-foreground/70"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                transition={{ duration: 0.25 }}
+              >
+                / {filterLabel}
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </motion.div>
         <motion.p
           className="font-body text-xs tracking-[0.3em] uppercase text-muted-foreground mb-2"
           initial={{ opacity: 0 }}
@@ -1167,6 +1218,7 @@ function AppInner() {
   const { items, subtotalCents, clearCart, closeCart } = useCart();
   const [profileOpen, setProfileOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
   const heroSettings = useMemo(
     () => readLocalStorage<HeroSettings>("jade_hero", DEFAULT_HERO_SETTINGS),
@@ -1205,7 +1257,11 @@ function AppInner() {
 
       <main>
         <Hero onShopClick={scrollToProducts} settings={heroSettings} />
-        <ProductsSection />
+        <CategoriesSection
+          onFilterChange={setCategoryFilter}
+          activeFilter={categoryFilter}
+        />
+        <ProductsSection categoryFilter={categoryFilter} />
         <AboutSection settings={aboutSettings} />
         <ReviewsSection />
       </main>
