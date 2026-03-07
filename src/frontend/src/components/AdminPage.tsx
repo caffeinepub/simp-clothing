@@ -1,5 +1,7 @@
+import { exportStoreData, importStoreData } from "@/lib/storeData";
 import {
   ChevronDown,
+  ClipboardCopy,
   CreditCard,
   Eye,
   EyeOff,
@@ -10,6 +12,7 @@ import {
   Package,
   Pencil,
   Plus,
+  RefreshCw,
   ShoppingCart,
   Sparkles,
   Star,
@@ -290,7 +293,8 @@ type Section =
   | "faq"
   | "hero"
   | "about"
-  | "payments";
+  | "payments"
+  | "sync";
 
 const NAV_ITEMS: Array<{ id: Section; label: string; icon: React.ReactNode }> =
   [
@@ -321,6 +325,11 @@ const NAV_ITEMS: Array<{ id: Section; label: string; icon: React.ReactNode }> =
       id: "payments",
       label: "Payments",
       icon: <CreditCard className="w-4 h-4" />,
+    },
+    {
+      id: "sync",
+      label: "Sync Data",
+      icon: <RefreshCw className="w-4 h-4" />,
     },
   ];
 
@@ -1764,10 +1773,32 @@ function OrdersSection() {
     readLS(LS_ORDERS, []),
   );
 
+  const refreshOrders = () => {
+    setOrders(readLS(LS_ORDERS, []));
+  };
+
+  // Re-read orders when a new order is placed on the same page/tab
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshOrders is stable (reads from LS only)
+  useEffect(() => {
+    const handleOrderAdded = () => refreshOrders();
+    window.addEventListener("jade_order_added", handleOrderAdded);
+    // Also listen for storage events from other tabs
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === LS_ORDERS) refreshOrders();
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("jade_order_added", handleOrderAdded);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
   const updateStatus = (id: number, status: string) => {
     const updated = orders.map((o) => (o.id === id ? { ...o, status } : o));
     setOrders(updated);
     writeLS(LS_ORDERS, updated);
+    // Notify other tabs
+    window.dispatchEvent(new StorageEvent("storage", { key: LS_ORDERS }));
     toast.success("Order status updated");
   };
 
@@ -1790,7 +1821,23 @@ function OrdersSection() {
 
   return (
     <section data-ocid="admin.orders_section">
-      <SectionHeader title="Orders" />
+      <div className="flex items-center justify-between mb-6 pb-4 border-b border-border/40">
+        <h2
+          className="font-display text-2xl tracking-tightest text-foreground"
+          style={{ fontVariationSettings: '"wght" 900' }}
+        >
+          Orders
+        </h2>
+        <button
+          type="button"
+          data-ocid="admin.orders.refresh_button"
+          onClick={refreshOrders}
+          className="flex items-center gap-1.5 px-4 py-2 border border-border/40 text-muted-foreground font-body text-xs tracking-widest uppercase hover:text-foreground hover:border-foreground/40 transition-colors duration-150"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Refresh
+        </button>
+      </div>
 
       {orders.length === 0 ? (
         <div
@@ -2318,6 +2365,181 @@ function AboutSectionEditor() {
   );
 }
 
+// ─── SYNC SECTION ─────────────────────────────────────────────────────────────
+function SyncSection() {
+  const [syncCode, setSyncCode] = useState("");
+  const [importCode, setImportCode] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleGenerate = () => {
+    setIsGenerating(true);
+    try {
+      const code = exportStoreData();
+      setSyncCode(code);
+    } catch {
+      toast.error("Failed to generate sync code");
+    }
+    setIsGenerating(false);
+  };
+
+  const handleCopy = async () => {
+    if (!syncCode) return;
+    try {
+      await navigator.clipboard.writeText(syncCode);
+      toast.success("Sync code copied to clipboard");
+    } catch {
+      toast.error("Could not copy — please select the code and copy manually");
+    }
+  };
+
+  const handleImport = () => {
+    if (!importCode.trim()) {
+      toast.error("Please paste a sync code first");
+      return;
+    }
+    const success = importStoreData(importCode.trim());
+    if (success) {
+      toast.success("Data imported successfully — reloading…");
+      setTimeout(() => window.location.reload(), 1200);
+    } else {
+      toast.error("Invalid sync code — please check and try again");
+    }
+  };
+
+  return (
+    <section data-ocid="admin.sync_section">
+      <SectionHeader title="Sync Data" />
+
+      <p className="font-body text-xs text-muted-foreground/60 mb-8 tracking-wide max-w-xl">
+        Use sync codes to copy all store data (products, reviews, orders, FAQ,
+        categories, payment settings) from one device to another. Changes you
+        make on one phone will not automatically appear on another — use this
+        tool to manually sync.
+      </p>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl">
+        {/* Export panel */}
+        <div
+          data-ocid="admin.sync.export_panel"
+          className="p-5 bg-card border border-border/40 space-y-4"
+        >
+          <div>
+            <p
+              className="font-display text-sm tracking-tightest text-foreground mb-1"
+              style={{ fontVariationSettings: '"wght" 700' }}
+            >
+              Export
+            </p>
+            <p className="font-body text-[10px] tracking-wide text-muted-foreground/60">
+              Generate a sync code on this device, then paste it on your other
+              device to copy all store data across.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            data-ocid="admin.sync.generate_button"
+            onClick={handleGenerate}
+            disabled={isGenerating}
+            className="flex items-center gap-1.5 px-4 py-2 bg-foreground text-background font-body text-xs tracking-widest uppercase hover:bg-foreground/90 transition-colors duration-150 disabled:opacity-60"
+          >
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${isGenerating ? "animate-spin" : ""}`}
+            />
+            Generate Sync Code
+          </button>
+
+          {syncCode && (
+            <div className="space-y-2">
+              <textarea
+                data-ocid="admin.sync.export_code_textarea"
+                readOnly
+                value={syncCode}
+                rows={5}
+                className="w-full bg-background border border-border/40 px-3 py-2 font-mono text-[10px] text-muted-foreground/80 focus:outline-none resize-none break-all"
+                onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    (e.target as HTMLTextAreaElement).select();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                data-ocid="admin.sync.copy_button"
+                onClick={handleCopy}
+                className="flex items-center gap-1.5 px-4 py-2 border border-border/40 text-muted-foreground font-body text-xs tracking-widest uppercase hover:text-foreground hover:border-foreground/40 transition-colors duration-150"
+              >
+                <ClipboardCopy className="w-3.5 h-3.5" />
+                Copy to Clipboard
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Import panel */}
+        <div
+          data-ocid="admin.sync.import_panel"
+          className="p-5 bg-card border border-border/40 space-y-4"
+        >
+          <div>
+            <p
+              className="font-display text-sm tracking-tightest text-foreground mb-1"
+              style={{ fontVariationSettings: '"wght" 700' }}
+            >
+              Import
+            </p>
+            <p className="font-body text-[10px] tracking-wide text-muted-foreground/60">
+              Paste a sync code generated on your other device. All store data
+              will be replaced with the imported data and the page will reload.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <FieldLabel>Paste sync code here</FieldLabel>
+            <textarea
+              data-ocid="admin.sync.import_code_textarea"
+              value={importCode}
+              onChange={(e) => setImportCode(e.target.value)}
+              rows={5}
+              placeholder="Paste your sync code here…"
+              className="w-full bg-background border border-border/40 px-3 py-2 font-mono text-[10px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-foreground/40 transition-colors duration-150 resize-none"
+            />
+          </div>
+
+          <button
+            type="button"
+            data-ocid="admin.sync.import_button"
+            onClick={handleImport}
+            className="flex items-center gap-1.5 px-4 py-2 bg-foreground text-background font-body text-xs tracking-widest uppercase hover:bg-foreground/90 transition-colors duration-150"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Import Data
+          </button>
+        </div>
+      </div>
+
+      {/* Info callout */}
+      <div className="mt-6 max-w-xl p-4 border border-border/30 bg-card/30">
+        <p className="font-body text-[10px] tracking-wide text-muted-foreground/60 leading-relaxed">
+          <span
+            className="font-display text-[11px] text-muted-foreground"
+            style={{ fontVariationSettings: '"wght" 700' }}
+          >
+            How it works:{" "}
+          </span>
+          Admin changes (products, reviews, etc.) are saved locally in each
+          browser. Generating a sync code captures a snapshot of this device's
+          data. Importing it on another device replaces that device's store data
+          with the snapshot. Orders are also included — if both devices have
+          different orders, importing will overwrite them. Always export from
+          the most up-to-date device.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 function Sidebar({
   active,
@@ -2464,6 +2686,8 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         return <AboutSectionEditor />;
       case "payments":
         return <PaymentSettingsSection />;
+      case "sync":
+        return <SyncSection />;
     }
   };
 

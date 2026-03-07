@@ -262,6 +262,10 @@ export function PaymentModal({
       const updatedOrders = [...existing, newOrder];
       localStorage.setItem("jade_orders", JSON.stringify(updatedOrders));
 
+      // Notify admin panel (same-tab and cross-tab) that a new order was added
+      window.dispatchEvent(new CustomEvent("jade_order_added"));
+      window.dispatchEvent(new StorageEvent("storage", { key: "jade_orders" }));
+
       setPlacing(false);
       setOrderNo(generated);
       setStep("success");
